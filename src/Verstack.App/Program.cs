@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using Verstack.Minecraft.Session;
 using Verstack.Minecraft.Status;
 using Verstack.Network;
 
@@ -11,17 +12,17 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-// Конфигурация сервера — здесь, в точке входа. Handler — чистая логика диспетчеризации,
-// данные задаёт App. Позже вынесется в config-файл.
+// Конфигурация сервера — здесь, в точке входа. Фабрика — чистая логика создания
+// диспетчеров на каждое соединение, данные задаёт App. Позже вынесется в config-файл.
 var status = new ServerStatusResponse(
     new ServerVersion("1.22.11", 774),
     new ServerCapacity(max: 99, online: 0),
     "A Minecraft Server");
 
-var handler = new ServerStatusHandler(status);
+var factory = new PacketDispatcherFactory(status);
 
 var endPoint = new IPEndPoint(IPAddress.Any, 25565);
-using var server = new TcpServer(endPoint, handler);
+using var server = new TcpServer(endPoint, factory);
 server.Start();
 
 Console.WriteLine("[Verstack] Press Ctrl+C to stop.");
