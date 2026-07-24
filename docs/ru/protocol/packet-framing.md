@@ -103,10 +103,7 @@ payload     = ...300 байт...
 ```csharp
 public ref struct PacketFrameScanner
 {
-    // Стандартный лимит размера кадра Minecraft (~2 МБ).
-    public const int DEFAULT_MAX_PACKET_SIZE = 2 * 1024 * 1024;
-
-    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = DEFAULT_MAX_PACKET_SIZE);
+    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = PacketFraming.DEFAULT_MAX_PACKET_SIZE);
 
     // Продвинуться к следующему целому кадру.
     // true  → кадр доступен в Current.
@@ -160,3 +157,46 @@ switch (scanner.Status)
 ```
 
 См. `src/Verstack.Protocol/PacketFrameScanner.cs`.
+
+## PacketFraming
+
+`PacketFraming` — это зеркало scanner'а: если `PacketFrameScanner` читает кадры из `ReadOnlySequence<byte>`, то `PacketFraming` пишет кадры в `IBufferWriter<byte>`.
+
+### Решения по дизайну
+
+- **`static class`, а не `ref struct`** — в отличие от scanner'а, у writer'а нет итерационного состояния (никаких `MoveNext`/`Current`, никакой позиции курсора). Он выполняет одно действие — обернуть payload в length-prefix — поэтому stateful-struct был бы ошибкой. Асимметрия со scanner'ом осознанная.
+- **Пишет в `IBufferWriter<byte>`, а не в `PipeWriter`** — тот же Dependency Inversion, что и чтение scanner'ом из `ReadOnlySequence<byte>`. В продакшене подаётся `PipeWriter`, в тестах — `ArrayBufferWriter<byte>`, фрейминг остаётся тестируемым без сокета и pipe.
+- **Атомарная запись кадра** — запрашивается один span на весь кадр (`length-prefix + payload`) и коммитится один вызовом `Advance`. Length-prefix и payload ложатся в память слитно, так что читателю никогда не придётся склеивать их по сегментам. Контракт `IBufferWriter<byte>.GetSpan(sizeHint)` гарантирует, что возвращённый span не меньше `sizeHint` байт — fallback-путей нет.
+- **Без `Status`-enum'а** — чтение из потока может быть partial/malformed; запись в буфер — нет (контракт `IBufferWriter` гарантирует место). Возможны только успех или exception, так что status-enum был бы карго-культовой симметрией со scanner'ом.
+
+### API
+
+```csharp
+public static class PacketFraming
+{
+    // Стандартный лимит размера кадра Minecraft (~2 МБ).
+    // Единый источник истины — PacketFrameScanner ссылается сюда.
+    public const int DEFAULT_MAX_PACKET_SIZE = 2 * 1024 * 1024;
+
+    // Обернуть payload в [VarInt(length)][payload] и записать целый кадр
+    // в output. Атомарно: length-prefix и payload ложатся в один contiguous span.
+    public static void Write(IBufferWriter<byte> output, ReadOnlySpan<byte> payload);
+}
+```
+
+### Почему `DEFAULT_MAX_PACKET_SIZE` живёт здесь
+
+Лимит — свойство самой схемы фрейминга, а не отдельно читателя или писателя. Теперь, когда константа на `PacketFraming`, а `PacketFrameScanner` ссылается на неё через дефолт конструктора, есть ровно одно место для смены лимита — и обе стороны framing-контракта остаются синхронными.
+
+### Использование
+
+```csharp
+// Payload формируется в другом месте (например, сериализатором пакета).
+ReadOnlySpan<byte> payload = ...;
+
+// Записать один целый кадр. PipeWriter реализует IBufferWriter<byte>.
+PacketFraming.Write(connection.Output, payload);
+await connection.Output.FlushAsync(token);
+```
+
+См. `src/Verstack.Protocol/PacketFraming.cs`.

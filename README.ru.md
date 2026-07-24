@@ -9,7 +9,7 @@ data-oriented архитектуру.
 
 ## Документация
 
-См. [Wiki](docs/en/index.md).
+См. [Wiki](docs/ru/index.md).
 
 ## Цели
 

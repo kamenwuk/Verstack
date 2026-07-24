@@ -6,22 +6,26 @@ namespace Verstack.Network;
 
 /// <summary>
 /// TCP server: listening socket + accept loop.
-/// Knows nothing about Minecraft — transport only.
+/// Knows nothing about Verstack.Minecraft — transport only.
 /// </summary>
 public sealed class TcpServer : IDisposable
 {
     private const int BACKLOG = 100;
     
     private readonly IPEndPoint _endPoint;
+    private readonly IPacketHandler _handler;
     private Socket? _listenSocket;
     
     /// <summary>
     /// Creates a server bound to <paramref name="endPoint"/>.
     /// </summary>
-    public TcpServer(IPEndPoint endPoint)
+    /// <param name="handler">Processes each accepted connection's packets.</param>
+    public TcpServer(IPEndPoint endPoint, IPacketHandler handler)
     {
         ArgumentNullException.ThrowIfNull(endPoint);
+        ArgumentNullException.ThrowIfNull(handler);
         _endPoint = endPoint;
+        _handler = handler;
     }
     
     /// <summary>
@@ -60,7 +64,7 @@ public sealed class TcpServer : IDisposable
             try
             {
                 // ValueTask<Socket>: на синхронном завершении не аллокирует.
-                // Для Minecraft (десятки подключений при старте) — более чем достаточно;
+                // Для Verstack.Minecraft (десятки подключений при старте) — более чем достаточно;
                 // для «тысячи/сек» нужен пул SocketAsyncEventArgs — но не сейчас.
                 client = await _listenSocket.AcceptAsync(token)
                     .ConfigureAwait(false);
@@ -86,7 +90,7 @@ public sealed class TcpServer : IDisposable
             // Вся жизнь соединения — в SessionLifetime (SRP: TcpServer только accept).
             // Оговорка: await блокирует accept-цикл, поэтому сервер держит одно
             // соединение за раз. Конкурентность — отдельный шаг (Task.Run / fire-and-forget).
-            var session = new SessionLifetime();
+            var session = new SessionLifetime(_handler);
             await session.RunAsync(connection, token).ConfigureAwait(false);
             
             Console.WriteLine($"[{nameof(TcpServer)}] Connection from {client.RemoteEndPoint} closed.");

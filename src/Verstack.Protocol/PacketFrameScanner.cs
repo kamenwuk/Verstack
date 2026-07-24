@@ -3,7 +3,7 @@ using System.Buffers;
 namespace Verstack.Protocol;
 
 /// <summary>
-/// Scans a <see cref="ReadOnlySequence{T}"/> using Minecraft framing
+/// Scans a <see cref="ReadOnlySequence{T}"/> using Verstack.Minecraft framing
 /// (VarInt-length-prefix), yielding complete frames one at a time.
 /// </summary>
 /// <remarks>
@@ -15,9 +15,6 @@ namespace Verstack.Protocol;
 /// </remarks>
 public ref struct PacketFrameScanner
 {
-    /// <summary>Default Minecraft frame size limit, in bytes (~2 MB).</summary>
-    public const int DEFAULT_MAX_PACKET_SIZE = 2 * 1024 * 1024;
-
     private SequenceReader<byte> _reader;
     private readonly int _maxPacketSize;
     private ReadOnlySequence<byte> _currentPayload;
@@ -56,7 +53,7 @@ public ref struct PacketFrameScanner
     /// </summary>
     /// <param name="maxPacketSize">Upper bound on a frame's payload length;
     /// frames exceeding it are reported as <see cref="VarInt.ReadStatus.Malformed"/>.</param>
-    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = DEFAULT_MAX_PACKET_SIZE)
+    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = PacketFraming.DEFAULT_MAX_PACKET_SIZE)
     {
         if (maxPacketSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxPacketSize), $"[{nameof(PacketFrameScanner)}] maxPacketSize must be positive.");

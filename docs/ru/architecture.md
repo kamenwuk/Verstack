@@ -1,6 +1,6 @@
 # Архитектура
 
-Справочник по структуре решения Verstack, слоям и зависимостям.
+Карта кодовой базы Verstack: какие проекты есть, чем владеет каждый и в какую сторону могут идти зависимости. Детали реализации каждого слоя — на отдельных страницах.
 
 ## Структура решения
 
@@ -10,79 +10,66 @@ Directory.Build.props                  ← общие настройки все�
 src/
 ├── Verstack.Network/                  ← TCP/сокеты + цикл PipeReader. Зависит от Protocol.
 ├── Verstack.Protocol/                 ← VarInt, фрейминг. Чистая логика, 0 NuGet-зависимостей.
+├── Verstack.Minecraft/                ← семантика пакетов Minecraft. Зависит от Protocol и Network.
+│   └── Status/                        ← Status-фаза: DTO, сериализатор, handler.
 └── Verstack.App/                      ← Program.cs, точка входа. AssemblyName=Verstack
 tests/
-└── Verstack.Protocol.Tests/           ← xUnit, гоняет Protocol через Span/Sequence
+├── Verstack.Protocol.Tests/           ← xUnit, гоняет Protocol через Span/Sequence
+└── Verstack.Minecraft.Tests/          ← xUnit, гоняет сериализацию Minecraft через IBufferWriter
 ```
 
-## Слои и направление зависимостей
+## Как идут зависимости
 
 ```
-App  →  Network  →  Protocol  →  (только BCL)
+App  ──►  Network  ──►  Protocol  ──►  (только BCL)
+ │          ▲
+ │          │ Minecraft реализует IPacketHandler
+ └────►  Minecraft  ──►  Protocol  ──►  (только BCL)
 ```
 
-| Слой       | Знает про                            | НЕ знает про                 |
-|------------|--------------------------------------|------------------------------|
-| `App`      | Network, Protocol                    | семантику Minecraft          |
-| `Network`  | Protocol (`PacketFrameScanner`)      | семантику пакетов Minecraft  |
-| `Protocol` | только BCL (`System.Buffers`)        | сокеты, Network, Minecraft   |
+Зависимость линейная, не симметричная: Minecraft ссылается на Network, никогда наоборот. Это Dependency Inversion — Network владеет контрактом `IPacketHandler` («как мне передать разобранный кадр в вышележащий слой»), а Minecraft даёт его реализацию. Правило слоистости здесь — *знай меньше, а не больше*: Network по-прежнему ничего не знает о пакетах Minecraft.
 
-**Ключевое правило:** Protocol никогда не ссылается на Network. Protocol тестируется изолированно через
-`Span<byte>` / `ReadOnlySequence<byte>`, без сокета.
+Все стрелки идут вниз, в сторону Protocol / BCL. Protocol — фундамент, на котором все стоят, и ссылается он только на базовую библиотеку классов.
 
-## Verstack.Network
+| Слой        | Может ссылаться на                       | НЕ может ссылаться на        |
+|-------------|------------------------------------------|------------------------------|
+| `App`       | Network, Minecraft, Protocol             | — (корень композиции)        |
+| `Network`   | Protocol, контракт `IPacketHandler`      | специфику пакетов Minecraft  |
+| `Minecraft` | Network (`IPacketHandler`), Protocol     | — (верхний слой)             |
+| `Protocol`  | только BCL (`System.Buffers`)            | сокеты, Network, Minecraft   |
 
-Зависит от `Pipelines.Sockets.Unofficial` (raw-сокеты + `System.IO.Pipelines`, Marc Gravell).
+- **Protocol никогда не ссылается на Network или Minecraft.** Тестируется изолированно через `Span<byte>` / `ReadOnlySequence<byte>`, без сокета.
+- **Network никогда не ссылается на Minecraft.** Единственный путь из Minecraft в мир Network — реализация `IPacketHandler`, которую App подсовывает Network'у.
 
-| Тип                  | Ответственность                                                      |
-|----------------------|----------------------------------------------------------------------|
-| `TcpServer`          | Слушающий сокет + accept-цикл. Создаёт `SocketConnection`, передаёт `SessionLifetime`. |
-| `SessionLifetime`    | Жизнь одного соединения: цикл `PipeReader`, фрейминг через `PacketFrameScanner`, диспетчер кадров. |
+## Слои
 
-### Цикл чтения (SessionLifetime.RunAsync)
+### Verstack.Network
 
-```
-loop:
-    ReadResult = await reader.ReadAsync(token)
-    scanner = new PacketFrameScanner(result.Buffer)
-    while scanner.MoveNext(): dispatch(scanner.Current)  // один payload = один кадр Minecraft
-    reader.AdvanceTo(scanner.ConsumedPosition, result.Buffer.End)
-    if Malformed → рвём соединение
-    if result.IsCompleted → break
-reader.CompleteAsync()   // в finally
-```
+TCP-сокеты и циклы `PipeReader`/`PipeWriter`, превращающие сырой поток байт в обрамлённые payload'ы Minecraft и обратно. Построен на `Pipelines.Sockets.Unofficial` (raw-сокеты + pipe, Marc Gravell). Владеет `TcpServer`, `SessionLifetime` и контрактом `IPacketHandler`.
 
-- `AdvanceTo(consumed, examined)` с двумя аргументами — корректный backpressure.
-- При `Partial` `ConsumedPosition` указывает на начало недочитанного кадра, чтобы хвост остался в буфере.
-- Один scanner на `ReadAsync` — `result.Buffer` невалиден после `AdvanceTo`.
+→ [Network](network/index.md)
 
-## Verstack.Protocol
+### Verstack.Protocol
 
-Чистая логика, 0 NuGet-зависимостей. Тестируется через `Span<byte>` / `ReadOnlySequence<byte>`.
+Чистая логика, без NuGet-зависимостей. Всё здесь работает с `Span<byte>` и `ReadOnlySequence<byte>`. Предоставляет `VarInt` (целые LEB128) и пару фрейминга — `PacketFrameScanner` читает кадры из sequence, `PacketFraming` пишет их в буфер.
 
-| Тип                   | Ответственность                                                     |
-|-----------------------|----------------------------------------------------------------------|
-| `VarInt`              | LEB128 encode/decode `int`. `Encode`/`TryDecode` на `Span`, `TryRead` на `SequenceReader`. Вложенный enum `ReadStatus` (`Complete`/`Partial`/`Malformed`). |
-| `PacketFrameScanner`  | `ref struct`-enumerator. Разбивает `ReadOnlySequence<byte>` на целые кадры Minecraft (VarInt-length-prefix). Одноразовый на `ReadAsync`. |
+→ [VarInt](protocol/varint.md), [Фрейминг пакетов](protocol/packet-framing.md)
 
-### Фрейминг
+### Verstack.Minecraft
 
-Каждый кадр на проводе:
+Слой, где байты становятся Minecraft. DTO пакетов, их сериализаторы и handler'ы, организованные по состояниям протокола (сейчас `Status`; дальше `Login` и `Play`). Ссылается на Network только ради реализации `IPacketHandler`.
 
-```
-[ VarInt: длина payload ][ payload: N байт ]
-```
+→ [Minecraft](minecraft/index.md)
 
-См. [Protocol/VarInt](protocol/varint.md) — кодирование LEB128.
+### Verstack.App
 
-## Verstack.App
-
-Точка входа (`Program.cs`). Создаёт `TcpServer`, связывает Ctrl+C → `CancellationTokenSource`, запускает `server.RunAsync(token)`.
+Точка входа (`Program.cs`) и корень композиции: конструирует данные статуса и `ServerStatusHandler` (Minecraft), передаёт его в `TcpServer` (Network) и крутит сервер до Ctrl+C.
 
 ## Текущий статус
 
 - ✅ TCP-listener на 25565, принимает соединения.
 - ✅ Читает и фреймит входящие пакеты (`PacketFrameScanner`).
-- ✅ Проверено end-to-end: handshake реального Minecraft-клиента (1.21.6) декодирован корректно.
-- ⬜ Packet writer / исходящие пакеты (Status Response) — не реализовано.
-- ⬜ Handshake state machine — не реализовано.
+- ✅ Пишет исходящие кадры (`PacketFraming`).
+- ✅ Status Response: реальный Minecraft-клиент 1.21.6 при пинге списка серверов видит MOTD, версию и слоты игроков.
+- ⬜ Handshake state machine — разобрать пакет Handshake, переключить состояние протокола, диспетчеризовать по packet id.
+- ⬜ Настоящий диспетчер — `ServerStatusHandler` сейчас отвечает на *любой* кадр статусом (сознательная заглушка); нужно отвечать только на Status Request и отвечать на Ping пакетом Pong.

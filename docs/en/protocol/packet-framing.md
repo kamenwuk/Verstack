@@ -103,10 +103,7 @@ segment B: [ 0x02 <payload> ] ← second byte of VarInt + payload
 ```csharp
 public ref struct PacketFrameScanner
 {
-    // Default Minecraft frame size limit (~2 MB).
-    public const int DEFAULT_MAX_PACKET_SIZE = 2 * 1024 * 1024;
-
-    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = DEFAULT_MAX_PACKET_SIZE);
+    public PacketFrameScanner(ReadOnlySequence<byte> input, int maxPacketSize = PacketFraming.DEFAULT_MAX_PACKET_SIZE);
 
     // Advance to the next complete frame.
     // true  → a frame is available in Current.
@@ -160,3 +157,46 @@ switch (scanner.Status)
 ```
 
 See `src/Verstack.Protocol/PacketFrameScanner.cs`.
+
+## PacketFraming
+
+`PacketFraming` is the mirror of the scanner: where `PacketFrameScanner` reads frames out of a `ReadOnlySequence<byte>`, `PacketFraming` writes frames into an `IBufferWriter<byte>`.
+
+### Design choices
+
+- **`static class`, not `ref struct`** — unlike the scanner, the writer has no iteration state (no `MoveNext`/`Current`, no cursor position). It performs a single action — wrap a payload in a length prefix — so a stateful struct would be wrong. The asymmetry with the scanner is deliberate.
+- **Writes to `IBufferWriter<byte>`, not `PipeWriter`** — the same Dependency Inversion as the scanner reading from `ReadOnlySequence<byte>`. A `PipeWriter` is fed in production; an `ArrayBufferWriter<byte>` in tests, keeping the framing logic testable without a socket or a pipe.
+- **Atomic frame write** — requests one span sized to the whole frame (`length prefix + payload`) and commits once via `Advance`. The length prefix and payload land contiguously in memory, so a reader never has to stitch them back together across segments. The `IBufferWriter<byte>.GetSpan(sizeHint)` contract guarantees the returned span is at least `sizeHint` bytes — no fallback paths.
+- **No `Status` enum** — reading from a stream can be partial/malformed; writing into a buffer cannot (the `IBufferWriter` contract guarantees the space). The only outcomes are success or an exception, so a status enum would be cargo-cult symmetry with the scanner.
+
+### API
+
+```csharp
+public static class PacketFraming
+{
+    // Default Minecraft frame size limit (~2 MB).
+    // The single source of truth — PacketFrameScanner references this.
+    public const int DEFAULT_MAX_PACKET_SIZE = 2 * 1024 * 1024;
+
+    // Wrap payload in [VarInt(length)][payload] and write the complete frame
+    // to output. Atomic: length prefix and payload land in one contiguous span.
+    public static void Write(IBufferWriter<byte> output, ReadOnlySpan<byte> payload);
+}
+```
+
+### Why `DEFAULT_MAX_PACKET_SIZE` lives here
+
+The limit is a property of the framing scheme itself, not of either the reader or the writer in particular. With the constant now on `PacketFraming` and `PacketFrameScanner` referencing it via its constructor default, there is exactly one place to change the limit — and both sides of the framing contract stay in sync.
+
+### Usage
+
+```csharp
+// Payload is built elsewhere (e.g. a packet serializer).
+ReadOnlySpan<byte> payload = ...;
+
+// Write a single complete frame. PipeWriter implements IBufferWriter<byte>.
+PacketFraming.Write(connection.Output, payload);
+await connection.Output.FlushAsync(token);
+```
+
+See `src/Verstack.Protocol/PacketFraming.cs`.
