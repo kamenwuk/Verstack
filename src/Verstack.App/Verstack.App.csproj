@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Verstack.App</RootNamespace>
+        <AssemblyName>Verstack</AssemblyName>
+    </PropertyGroup>
+    
+    <ItemGroup>
+        <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+        <ProjectReference Include="..\Verstack.Protocol\Verstack.Protocol.csproj" />
+    </ItemGroup>
+    
+</Project>

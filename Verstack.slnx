@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Verstack.App/Verstack.App.csproj" />
+    <Project Path="src/Verstack.Network/Verstack.Network.csproj" />
+    <Project Path="src/Verstack.Protocol/Verstack.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Verstack.Protocol.Tests/Verstack.Protocol.Tests.csproj" />
+  </Folder>
+</Solution>
