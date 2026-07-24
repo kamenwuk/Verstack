@@ -53,7 +53,7 @@ TCP-сокеты и циклы `PipeReader`/`PipeWriter`, превращающи
 
 Чистая логика, без NuGet-зависимостей. Всё здесь работает с `Span<byte>` и `ReadOnlySequence<byte>`. Предоставляет `VarInt` (целые LEB128) и пару фрейминга — `PacketFrameScanner` читает кадры из sequence, `PacketFraming` пишет их в буфер.
 
-→ [VarInt](protocol/varint.md), [Фрейминг пакетов](protocol/packet-framing.md)
+→ [Protocol](protocol/index.md)
 
 ### Verstack.Minecraft
 

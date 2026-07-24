@@ -8,8 +8,7 @@
  |--------------------------------|--------------------------------------------------|
  | [Архитектура](architecture.md) | Слои, зоны ответственности и проектные решения.  |
  | [Network](network/index.md)    | Слой Network: `TcpServer`, `SessionLifetime`, цикл чтения и шов `IPacketHandler`. |
- | [VarInt](protocol/varint.md)   | Кодирование целого переменной длины в протоколе. |
- | [Фрейминг пакетов](protocol/packet-framing.md) | Разделение потока байт TCP на кадры Minecraft через `PacketFrameScanner`, обратная запись кадров через `PacketFraming`. |
+ | [Protocol](protocol/index.md)  | Слой Protocol: `VarInt` и пара фрейминга (`PacketFrameScanner`, `PacketFraming`). |
  | [Minecraft](minecraft/index.md) | Слой Minecraft: DTO пакетов, сериализаторы и handler'ы, организованные по состояниям протокола. |
 
 > Документы будут добавляться по мере роста проекта (заметки по протоколу, руководство для контрибьюторов и т.д.).

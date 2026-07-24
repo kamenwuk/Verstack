@@ -53,7 +53,7 @@ TCP sockets and the `PipeReader`/`PipeWriter` loops that turn a raw byte stream 
 
 Pure logic, no NuGet dependencies. Everything here works on `Span<byte>` and `ReadOnlySequence<byte>`. Provides `VarInt` (LEB128 integers) and the framing pair — `PacketFrameScanner` reads frames out of a sequence, `PacketFraming` writes them into a buffer.
 
-→ [VarInt](protocol/varint.md), [Packet Framing](protocol/packet-framing.md)
+→ [Protocol](protocol/index.md)
 
 ### Verstack.Minecraft
 
