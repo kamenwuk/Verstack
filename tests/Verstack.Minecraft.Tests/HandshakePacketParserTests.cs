@@ -21,7 +21,7 @@ public class HandshakePacketParserTests
         // 1.21.6 proto=774, "localhost", port 25565, nextState=Status(1).
         byte[] body = BuildHandshakeBody(774, "localhost", 25565, 1);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.True(ok);
@@ -36,7 +36,7 @@ public class HandshakePacketParserTests
     {
         byte[] body = BuildHandshakeBody(774, "mc.example.com", 25565, 2);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.True(ok);
@@ -57,7 +57,7 @@ public class HandshakePacketParserTests
         // VarInt(774) обрезан до continuation-байта.
         byte[] body = { 0x86 };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -70,7 +70,7 @@ public class HandshakePacketParserTests
         // VarInt(proto) есть, дальше continuation длины строки.
         byte[] body = { 0x86, 0x06, 0xAC };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -83,7 +83,7 @@ public class HandshakePacketParserTests
         // Заявлено "abc" (3), тело "ab".
         byte[] body = { 0x86, 0x06, 0x03, (byte)'a', (byte)'b' };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -96,7 +96,7 @@ public class HandshakePacketParserTests
         // Все поля кроме порта; порт обрезан до 1 байта.
         byte[] body = { 0x86, 0x06, 0x00, 0x63 };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -109,7 +109,7 @@ public class HandshakePacketParserTests
         // Все поля кроме nextState.
         byte[] body = BuildHandshakeBody(774, "ab", 25565, 1, includeNextState: false);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -126,7 +126,7 @@ public class HandshakePacketParserTests
     {
         byte[] body = BuildHandshakeBody(774, "localhost", 25565, nextState);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.False(ok);
@@ -140,7 +140,7 @@ public class HandshakePacketParserTests
     {
         byte[] body = BuildHandshakeBody(774, "", 25565, 1);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.True(ok);
@@ -154,7 +154,7 @@ public class HandshakePacketParserTests
         string address = "Игрок";
         byte[] body = BuildHandshakeBody(774, address, 25565, 1);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet);
 
         Assert.True(ok);
@@ -168,7 +168,7 @@ public class HandshakePacketParserTests
     {
         byte[] body = BuildHandshakeBody(774, "localhost", 25565, 1);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         HandshakePacketParser.TryParse(ref reader, out _);
 
         // После успешного разбора хвостовых байт быть не должно — handshake

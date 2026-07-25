@@ -1,24 +1,12 @@
 using System.Buffers.Binary;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Protocol;
-
 /// <summary>
-/// A Minecraft UUID: 128 bits on the wire as 16 big-endian bytes (no dashes),
-/// independent of <see cref="System.Guid"/>'s mixed-endian layout.
+/// A Minecraft UUID: 128 bits, transmitted as 16 big-endian bytes without dashes.
 /// </summary>
-/// <remarks>
-/// Stored as two <see cref="ulong"/>s in wire (big-endian) order, so byte-for-byte
-/// comparisons against the wire stay trivial. <see cref="System.Guid"/> treats its
-/// first three fields as little-endian, which would silently break any code that
-/// assumes the in-memory layout matches the wire — hence a dedicated type.
-/// </remarks>
 public readonly struct Uuid : IEquatable<Uuid>
 {
-    // Первые 8 байт провода как big-endian uint64.
     private readonly ulong _hi;
-    // Последние 8 байт провода как big-endian uint64.
     private readonly ulong _lo;
 
     private Uuid(ulong hi, ulong lo)
@@ -27,30 +15,26 @@ public readonly struct Uuid : IEquatable<Uuid>
         _lo = lo;
     }
 
-    /// <summary>
-    /// Reads a UUID from exactly 16 bytes, big-endian.
-    /// </summary>
+    /// <summary>Reads a UUID from 16 big-endian bytes.</summary>
     /// <exception cref="ArgumentException"><paramref name="bytes"/> is shorter than 16.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Uuid Read(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < 16)
-            throw new ArgumentException($"[{nameof(Uuid)}] Need 16 bytes, got {bytes.Length}.", nameof(bytes));
+            throw new ArgumentException($"Need 16 bytes, got {bytes.Length}.", nameof(bytes));
 
         ulong hi = BinaryPrimitives.ReadUInt64BigEndian(bytes);
         ulong lo = BinaryPrimitives.ReadUInt64BigEndian(bytes[8..]);
         return new Uuid(hi, lo);
     }
 
-    /// <summary>
-    /// Writes the UUID as 16 big-endian bytes into <paramref name="bytes"/>.
-    /// </summary>
+    /// <summary>Writes the UUID as 16 big-endian bytes.</summary>
     /// <exception cref="ArgumentException"><paramref name="bytes"/> is shorter than 16.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(Span<byte> bytes)
     {
         if (bytes.Length < 16)
-            throw new ArgumentException($"[{nameof(Uuid)}] Need 16 bytes, got {bytes.Length}.", nameof(bytes));
+            throw new ArgumentException($"Need 16 bytes, got {bytes.Length}.", nameof(bytes));
 
         BinaryPrimitives.WriteUInt64BigEndian(bytes, _hi);
         BinaryPrimitives.WriteUInt64BigEndian(bytes[8..], _lo);
@@ -60,42 +44,34 @@ public readonly struct Uuid : IEquatable<Uuid>
     public bool Equals(Uuid other) => _hi == other._hi && _lo == other._lo;
 
     /// <inheritdoc/>
-    public override bool Equals([NotNullWhen(true)] object? obj)
-        => obj is Uuid other && Equals(other);
+    public override bool Equals(object? obj) => obj is Uuid other && Equals(other);
 
     /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(_hi, _lo);
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Canonical dashed form: <c>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</c>, lowercase.
-    /// One string allocation (unavoidable for text); the rest is stackalloc.
-    /// </remarks>
+    /// <summary>Returns the UUID in standard dashed format (e.g. 550e8400-e29b-41d4-a716-446655440000).</summary>
     public override string ToString()
     {
-        Span<byte> b = stackalloc byte[16];
-        Write(b);
+        Span<byte> bytes = stackalloc byte[16];
+        Write(bytes);
 
-        Span<char> c = stackalloc char[36];
+        Span<char> chars = stackalloc char[36];
         int ci = 0;
         for (int i = 0; i < 16; i++)
         {
-            // Дефисы по RFC 4122: после байтов 4, 6, 8, 10.
             if (i == 4 || i == 6 || i == 8 || i == 10)
-                c[ci++] = '-';
-            byte v = b[i];
-            c[ci++] = HexDigit(v >> 4);
-            c[ci++] = HexDigit(v & 0x0F);
+                chars[ci++] = '-';
+            byte v = bytes[i];
+            chars[ci++] = HexDigit(v >> 4);
+            chars[ci++] = HexDigit(v & 0x0F);
         }
-        return new string(c);
+        return new string(chars);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static char HexDigit(int nibble) => (char)(nibble < 10 ? '0' + nibble : 'a' + nibble - 10);
     }
 
-    /// <inheritdoc/>
     public static bool operator ==(Uuid left, Uuid right) => left.Equals(right);
 
-    /// <inheritdoc/>
     public static bool operator !=(Uuid left, Uuid right) => !left.Equals(right);
 }

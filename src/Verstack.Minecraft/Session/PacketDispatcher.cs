@@ -47,7 +47,7 @@ public sealed class PacketDispatcher : IPacketHandler
     /// <inheritdoc/>
     public PacketVerdict OnPacket(ReadOnlySequence<byte> payload, PipeWriter output)
     {
-        var reader = new PacketReader(payload);
+        var reader = new PacketPayloadReader(payload);
 
         // packet id читает сам диспетчер — по нему свитчуется роутинг.
         if (!reader.TryReadVarInt(out int packetId))
@@ -82,9 +82,9 @@ public sealed class PacketDispatcher : IPacketHandler
     // Разбирает Handshake и переводит фазу. Login пока не реализован — фаза не
     // меняется, логируется. Остаться в Handshake безопасно: следующий пакет от
     // клиента всё равно уйдёт в default-ветку и порвёт соединение.
-    private PacketVerdict HandleHandshake(ref PacketReader reader)
+    private PacketVerdict HandleHandshake(ref PacketPayloadReader payloadReader)
     {
-        if (!HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet))
+        if (!HandshakePacketParser.TryParse(ref payloadReader, out HandshakePacket packet))
         {
             Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Handshake — dropping connection.");
             return PacketVerdict.Disconnect;
@@ -108,12 +108,12 @@ public sealed class PacketDispatcher : IPacketHandler
     {
         _scratch.Clear();
         ServerStatusSerializer.Write(_scratch, in _status);
-        PacketFraming.Write(output, _scratch.WrittenSpan);
+        PacketFrameWriter.Encode(output, _scratch.WrittenSpan);
     }
     
-    private PacketVerdict HandlePing(ref PacketReader reader, PipeWriter output)
+    private PacketVerdict HandlePing(ref PacketPayloadReader payloadReader, PipeWriter output)
     {
-        if (!reader.TryReadInt64BigEndian(out long timestamp))
+        if (!payloadReader.TryReadInt64BigEndian(out long timestamp))
         {
             Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Ping — dropping connection.");
             return PacketVerdict.Disconnect;
@@ -126,13 +126,13 @@ public sealed class PacketDispatcher : IPacketHandler
         BinaryPrimitives.WriteInt64BigEndian(span[written..], timestamp);
         _scratch.Advance(written + sizeof(long));
 
-        PacketFraming.Write(output, _scratch.WrittenSpan);
+        PacketFrameWriter.Encode(output, _scratch.WrittenSpan);
         return PacketVerdict.Keep;
     }
     
-    private PacketVerdict HandleLoginStart(ref PacketReader reader)
+    private PacketVerdict HandleLoginStart(ref PacketPayloadReader payloadReader)
     {
-        if (!LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet))
+        if (!LoginStartPacketParser.TryParse(ref payloadReader, out LoginStartPacket packet))
         {
             Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Login Start — dropping connection.");
             return PacketVerdict.Disconnect;

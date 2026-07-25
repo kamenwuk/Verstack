@@ -7,14 +7,14 @@ namespace Verstack.Protocol.Tests;
 /// Tests for PacketFrameScanner: complete frames, partial/corrupted data,
 /// multi-segment sequences, ConsumedPosition contract.
 /// </summary>
-public class PacketFrameScannerTests
+public class PacketFrameReaderTests
 {
     [Fact]
     public void MoveNext_SingleCompleteFrame_ReturnsTrueAndPayload()
     {
         // [VarInt(5)][payload: 5 байт]
         byte[] input = [0x05, 1, 2, 3, 4, 5];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input));
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input));
 
         bool moved = scanner.MoveNext();
 
@@ -28,7 +28,7 @@ public class PacketFrameScannerTests
     {
         // [frame len=2][AA BB][frame len=3][CC DD EE]
         byte[] input = [0x02, 0xAA, 0xBB, 0x03, 0xCC, 0xDD, 0xEE];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input));
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input));
 
         Assert.True(scanner.MoveNext());
         Assert.True(scanner.Current.ToArray().SequenceEqual(new byte[] { 0xAA, 0xBB }));
@@ -43,7 +43,7 @@ public class PacketFrameScannerTests
     {
         // continuation есть, второго байта нет.
         byte[] input = [0xAC];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input));
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input));
 
         bool moved = scanner.MoveNext();
 
@@ -56,7 +56,7 @@ public class PacketFrameScannerTests
     {
         // VarInt заявляет 5 байт, payload только 3.
         byte[] input = [0x05, 1, 2, 3];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input));
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input));
 
         bool moved = scanner.MoveNext();
 
@@ -69,7 +69,7 @@ public class PacketFrameScannerTests
     {
         // VarInt(2) + 1 байт payload, но maxPacketSize=1 → oversized.
         byte[] input = [0x02, 0xFF];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input), maxPacketSize: 1);
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input), maxPacketSize: 1);
 
         bool moved = scanner.MoveNext();
 
@@ -82,7 +82,7 @@ public class PacketFrameScannerTests
     {
         // 5 байт continuation: VarInt не закрылся → битый.
         byte[] input = [0x80, 0x80, 0x80, 0x80, 0x80];
-        var scanner = new PacketFrameScanner(new ReadOnlySequence<byte>(input));
+        var scanner = new PacketFrameReader(new ReadOnlySequence<byte>(input));
 
         bool moved = scanner.MoveNext();
 
@@ -96,7 +96,7 @@ public class PacketFrameScannerTests
         // [целый кадр len=1][частичный: VarInt=5, payload 3 байта]
         byte[] input = [0x01, 0xFF, 0x05, 1, 2, 3];
         var sequence = new ReadOnlySequence<byte>(input);
-        var scanner = new PacketFrameScanner(sequence);
+        var scanner = new PacketFrameReader(sequence);
 
         Assert.True(scanner.MoveNext());   // первый кадр целый
         Assert.False(scanner.MoveNext());  // второй — Partial
@@ -114,7 +114,7 @@ public class PacketFrameScannerTests
         // Один целый кадр потребляет весь буфер.
         byte[] input = [0x02, 0xAA, 0xBB];
         var sequence = new ReadOnlySequence<byte>(input);
-        var scanner = new PacketFrameScanner(sequence);
+        var scanner = new PacketFrameReader(sequence);
 
         Assert.True(scanner.MoveNext());
 
@@ -129,7 +129,7 @@ public class PacketFrameScannerTests
         var sequence = new ReadOnlySequence<byte>(input);
 
         var payloads = new List<byte[]>();
-        foreach (var payload in new PacketFrameScanner(sequence))
+        foreach (var payload in new PacketFrameReader(sequence))
         {
             payloads.Add(payload.ToArray());
         }
@@ -150,7 +150,7 @@ public class PacketFrameScannerTests
         var sequence = TestSequenceBuilder.BuildSegmented(
             [0x80],
             new byte[] { 0x01 }.Concat(payload).ToArray());
-        var scanner = new PacketFrameScanner(sequence);
+        var scanner = new PacketFrameReader(sequence);
 
         bool moved = scanner.MoveNext();
 
@@ -166,7 +166,7 @@ public class PacketFrameScannerTests
         var sequence = TestSequenceBuilder.BuildSegmented(
             [0x04, 1, 2],
             [3, 4]);
-        var scanner = new PacketFrameScanner(sequence);
+        var scanner = new PacketFrameReader(sequence);
 
         bool moved = scanner.MoveNext();
 
@@ -177,7 +177,7 @@ public class PacketFrameScannerTests
     [Fact]
     public void MoveNext_EmptyInput_ReturnsPartial()
     {
-        var scanner = new PacketFrameScanner(ReadOnlySequence<byte>.Empty);
+        var scanner = new PacketFrameReader(ReadOnlySequence<byte>.Empty);
 
         bool moved = scanner.MoveNext();
 

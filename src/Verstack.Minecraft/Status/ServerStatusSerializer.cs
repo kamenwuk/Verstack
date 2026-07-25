@@ -11,8 +11,8 @@ namespace Verstack.Minecraft.Status;
 /// <remarks>
 /// Produces the packet PAYLOAD only —
 /// <c>[VarInt(PACKET_ID)][VarInt(jsonLen)][UTF-8 JSON]</c>. Framing (the outer
-/// length prefix) is <see cref="PacketFraming"/>'s job; the caller composes the
-/// two. This mirrors the read side, where <see cref="PacketFrameScanner"/>
+/// length prefix) is <see cref="PacketFrameWriter"/>'s job; the caller composes the
+/// two. This mirrors the read side, where <see cref="PacketFrameReader"/>
 /// yields payloads and a (future) dispatcher parses them.
 /// </remarks>
 public static class ServerStatusSerializer
@@ -24,7 +24,7 @@ public static class ServerStatusSerializer
     /// Writes the Status Response payload to <paramref name="output"/>.
     /// </summary>
     /// <param name="output">Destination buffer — typically a scratch buffer the
-    /// caller then frames via <see cref="PacketFraming"/>.</param>
+    /// caller then frames via <see cref="PacketFrameWriter"/>.</param>
     /// <param name="status">Server status data to serialize.</param>
     public static void Write(IBufferWriter<byte> output, in ServerStatusResponse status)
     {

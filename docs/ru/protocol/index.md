@@ -1,11 +1,15 @@
 # Слой Protocol
 
-Protocol — чистая логика работы с байтами, без зависимостей кроме базовой библиотеки классов. Всё здесь работает с `Span<byte>` и `ReadOnlySequence<byte>` и может крутиться в консольном приложении без сокета — в этом и смысл выделения слоя. Он предоставляет три инструмента: `VarInt` — кодирование целых переменной длины (LEB128), которое Minecraft использует для длин и id; пару фрейминга, которая разрезает поток байт на пакеты и собирает их обратно; и `PacketReader`, читающий поля одного пакета из уже обрамлённого payload'а.
+Чистая логика работы с байтами протокола Minecraft. Нет зависимостей от сети или ввода-вывода — только `Span<byte>` и `ReadOnlySequence<byte>`. Можно тестировать без сокета.
 
-`PacketFrameScanner` — сторона чтения: `ref struct`-enumerator, который выдаёт целые кадры из `ReadOnlySequence<byte>`, одноразовый на `ReadAsync`. `PacketFraming` — сторона записи: `static class`, оборачивающий payload в VarInt-префикс длины и пишущий целый кадр в `IBufferWriter<byte>` одним атомарным куском. Они зеркальны друг другу и делят `DEFAULT_MAX_PACKET_SIZE`, который живёт на `PacketFraming` как единый источник истины.
+Три группы инструментов:
 
-`PacketReader` — надстройка над фреймингом по сторону чтения: он принимает payload целого кадра и читает поля по очереди — VarInt, big-endian fixed-width числа, length-prefixed UTF-8 строки и UUID. UUID возвращается типом `Uuid` (а не `System.Guid`), который определён здесь же и хранит 128 бит строго в wire-порядке. Это уровень абстракции, на котором парсеры конкретных пакетов в Minecraft собирают DTO из байт.
+- **VarInt** — кодирование целых переменной длины (LEB128). Используется для длин пакетов, идентификаторов и числовых полей.
+- **Фрейминг** — `PacketFrameReader` читает кадры из потока байт, `PacketFrameWriter` записывает кадры в буфер. Оба опираются на `VarInt` и общий лимит размера `DefaultMaxPacketSize`.
+- **Чтение полей** — `PacketPayloadReader` принимает payload готового кадра и последовательно читает VarInt, big-endian числа, строки и UUID. UUID представлен собственным типом `Uuid`, сохраняющим wire-порядок байт.
 
-→ [VarInt](varint.md)
-→ [Фрейминг пакетов](packet-framing.md)
-→ [Чтение полей пакета](packet-reader.md)
+→ [VarInt](varint.md)  
+→ [PacketFrameReader](packet-frame-reader.md)  
+→ [PacketFrameWriter](packet-frame-writer.md)  
+→ [PacketPayloadReader](packet-payload-reader.md)  
+→ [Uuid](uuid.md)

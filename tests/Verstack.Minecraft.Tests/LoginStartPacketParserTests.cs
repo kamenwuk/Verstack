@@ -24,7 +24,7 @@ public class LoginStartPacketParserTests
     {
         byte[] body = BuildLoginStartBody("Steve", SampleUuidBytes);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.True(ok);
@@ -44,7 +44,7 @@ public class LoginStartPacketParserTests
         // continuation-байт длины строки, но тела нет.
         byte[] body = { 0xAC };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.False(ok);
@@ -57,7 +57,7 @@ public class LoginStartPacketParserTests
         // Заявлено "abc" (3), тело "ab".
         byte[] body = { 0x03, (byte)'a', (byte)'b' };
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.False(ok);
@@ -74,7 +74,7 @@ public class LoginStartPacketParserTests
         ms.Write(name);
         for (int i = 0; i < 15; i++) ms.WriteByte(0x00);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(ms.ToArray()));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(ms.ToArray()));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.False(ok);
@@ -86,7 +86,7 @@ public class LoginStartPacketParserTests
     {
         byte[] body = BuildLoginStartBody("", SampleUuidBytes);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.True(ok);
@@ -99,7 +99,7 @@ public class LoginStartPacketParserTests
         string name = "Игрок";
         byte[] body = BuildLoginStartBody(name, SampleUuidBytes);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         bool ok = LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet);
 
         Assert.True(ok);
@@ -111,7 +111,7 @@ public class LoginStartPacketParserTests
     {
         byte[] body = BuildLoginStartBody("Steve", SampleUuidBytes);
 
-        var reader = new PacketReader(new ReadOnlySequence<byte>(body));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(body));
         LoginStartPacketParser.TryParse(ref reader, out _);
 
         Assert.Equal(body.Length, (int)reader.ConsumedBytes);

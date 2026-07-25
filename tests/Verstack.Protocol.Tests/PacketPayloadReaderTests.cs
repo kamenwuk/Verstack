@@ -10,7 +10,7 @@ namespace Verstack.Protocol.Tests;
 /// and a mixed sequential read mirroring the Handshake layout.
 /// Driven through Span/Sequence without a socket.
 /// </summary>
-public class PacketReaderTests
+public class PacketPayloadReaderTests
 {
     // ─── TryReadVarInt ──────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ public class PacketReaderTests
     [InlineData(new byte[] { 0x80, 0x80, 0x01 }, 16384)]
     public void TryReadVarInt_KnownBytes_ReturnsValue(byte[] bytes, int expected)
     {
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadVarInt(out int value);
 
@@ -35,7 +35,7 @@ public class PacketReaderTests
     [InlineData(new byte[] { 0x80, 0x80 })]       // continuation есть, 3-го байта нет
     public void TryReadVarInt_PartialVarInt_ReturnsFalse(byte[] bytes)
     {
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadVarInt(out int value);
 
@@ -48,7 +48,7 @@ public class PacketReaderTests
     {
         // 5 байт continuation: VarInt не закрылся → битый.
         byte[] bytes = { 0x80, 0x80, 0x80, 0x80, 0x80 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadVarInt(out int value);
 
@@ -63,7 +63,7 @@ public class PacketReaderTests
         var sequence = TestSequenceBuilder.BuildSegmented(
             new byte[] { 0xAC },
             new byte[] { 0x02 });
-        var reader = new PacketReader(sequence);
+        var reader = new PacketPayloadReader(sequence);
 
         bool ok = reader.TryReadVarInt(out int value);
 
@@ -80,7 +80,7 @@ public class PacketReaderTests
     [InlineData(new byte[] { 0xFF, 0xFF }, (ushort)65535)]
     public void TryReadUShortBigEndian_KnownBytes_ReturnsValue(byte[] bytes, ushort expected)
     {
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadUShortBigEndian(out ushort value);
 
@@ -93,7 +93,7 @@ public class PacketReaderTests
     {
         // 0x01 0x00 в big-endian = 256, в little-endian было бы 1.
         byte[] bytes = { 0x01, 0x00 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadUShortBigEndian(out ushort value);
 
@@ -106,7 +106,7 @@ public class PacketReaderTests
     {
         // Одного байта мало для ushort.
         byte[] bytes = { 0x01 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadUShortBigEndian(out ushort value);
 
@@ -121,7 +121,7 @@ public class PacketReaderTests
     {
         // 1 в big-endian: 7 нулей + 0x01.
         byte[] bytes = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadInt64BigEndian(out long value);
 
@@ -134,7 +134,7 @@ public class PacketReaderTests
     {
         // long.MaxValue — все значащие биты.
         byte[] bytes = { 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadInt64BigEndian(out long value);
 
@@ -146,7 +146,7 @@ public class PacketReaderTests
     public void TryReadInt64BigEndian_Partial_ReturnsFalse()
     {
         byte[] bytes = { 0x00, 0x00, 0x00 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadInt64BigEndian(out long value);
 
@@ -161,7 +161,7 @@ public class PacketReaderTests
     {
         // [VarInt(5)] "Hello"
         byte[] bytes = { 0x05, (byte)'H', (byte)'e', (byte)'l', (byte)'l', (byte)'o' };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -174,7 +174,7 @@ public class PacketReaderTests
     {
         // [VarInt(0)] — префикс без тела.
         byte[] bytes = { 0x00 };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -191,7 +191,7 @@ public class PacketReaderTests
         byte[] bytes = new byte[1 + utf8.Length];
         bytes[0] = (byte)utf8.Length; // для коротких длин VarInt = один байт
         Array.Copy(utf8, 0, bytes, 1, utf8.Length);
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -204,7 +204,7 @@ public class PacketReaderTests
     {
         // [VarInt(10)] "Hello" — заявлено 10, есть 5.
         byte[] bytes = { 0x0A, (byte)'H', (byte)'e', (byte)'l', (byte)'l', (byte)'o' };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -217,7 +217,7 @@ public class PacketReaderTests
     {
         // continuation VarInt, длина не закрыта.
         byte[] bytes = { 0xAC };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -232,7 +232,7 @@ public class PacketReaderTests
         var sequence = TestSequenceBuilder.BuildSegmented(
             new byte[] { 0x05, (byte)'H', (byte)'e' },
             new byte[] { (byte)'l', (byte)'l', (byte)'o' });
-        var reader = new PacketReader(sequence);
+        var reader = new PacketPayloadReader(sequence);
 
         bool ok = reader.TryReadString(out string? value);
 
@@ -256,7 +256,7 @@ public class PacketReaderTests
             0x63, 0xDD,                                                                    // ushort(25565) big-endian
             0x01                                                                           // VarInt(1)
         };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         bool v1 = reader.TryReadVarInt(out int protoVersion);
         bool v2 = reader.TryReadString(out string? address);
@@ -279,7 +279,7 @@ public class PacketReaderTests
             0x02, (byte)'a', (byte)'b',    // "ab"
             0x63                           // ushort обрезан (1 байт вместо 2)
         };
-        var reader = new PacketReader(new ReadOnlySequence<byte>(bytes));
+        var reader = new PacketPayloadReader(new ReadOnlySequence<byte>(bytes));
 
         Assert.True(reader.TryReadVarInt(out _));
         Assert.True(reader.TryReadString(out _));

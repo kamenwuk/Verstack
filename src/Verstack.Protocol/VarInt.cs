@@ -4,42 +4,32 @@ using System.Buffers;
 namespace Verstack.Protocol;
 
 /// <summary>
-/// VarInt (LEB128) — variable-length encoding of an <see cref="int"/>.
-/// Up to 5 bytes: each byte carries 7 data bits (0..6) and 1 continuation bit (7).
+/// VarInt (LEB128) encoding for <see cref="int"/> — up to 5 bytes, 7 data bits per byte, 1 continuation bit.
 /// </summary>
 public static class VarInt
 {
-    /// <summary>
-    /// Outcome of reading a VarInt from a byte stream.
-    /// </summary>
+    /// <summary>Result of reading a VarInt from a byte stream.</summary>
     public enum ReadStatus : byte
     {
-        /// <summary>VarInt is fully read.</summary>
+        /// <summary>VarInt fully decoded.</summary>
         Complete,
-        /// <summary>Bytes were not enough to make a whole VarInt — more data is needed.</summary>
+        /// <summary>Not enough bytes — more data needed.</summary>
         Partial,
-        /// <summary>Continuation did not close for <see cref="MAX_SIZE"/> bytes — the data is broken.</summary>
+        /// <summary>Continuation bit set on 5th byte — data is corrupt.</summary>
         Malformed
     }
 
-    /// <summary>Maximum encoded size, in bytes.</summary>
+    /// <summary>Maximum encoded size in bytes.</summary>
     public const int MAX_SIZE = 5;
 
     private const int CONTINUATION_MASK = 0x80;
     private const int DATA_MASK = 0x7F;
     private const int DATA_BITS = 7;
 
-    /// <summary>
-    /// Number of bytes required to encode <paramref name="value"/>.
-    /// </summary>
-    /// <remarks>
-    /// Pure computation without writing to a buffer — for predictive memory allocation.
-    /// </remarks>
+    /// <summary>Returns the number of bytes needed to encode <paramref name="value"/>.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetByteCount(int value)
     {
-        // Считаем по числу значащих 7-битных групп.
-        // Беззнаковый сдвиг: отрицательные дают 32 значащих бита → 5 байт.
         uint uValue = (uint)value;
         int bytes = 1;
         uValue >>= DATA_BITS;
@@ -51,55 +41,39 @@ public static class VarInt
         return bytes;
     }
 
-    /// <summary>
-    /// Encodes <paramref name="value"/> into <paramref name="destination"/>.
-    /// </summary>
-    /// <returns>Number of bytes written (1..<see cref="MAX_SIZE"/>).</returns>
-    /// <exception cref="ArgumentException">
-    /// <paramref name="destination"/> is empty.
-    /// </exception>
+    /// <summary>Encodes <paramref name="value"/> into <paramref name="destination"/>.</summary>
+    /// <returns>Number of bytes written.</returns>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is empty.</exception>
     public static int Encode(int value, Span<byte> destination)
     {
         if (destination.Length < 1)
-            throw new ArgumentException($"[{nameof(VarInt)}] Destination buffer too small.", nameof(destination));
+            throw new ArgumentException("Destination buffer too small.", nameof(destination));
 
         uint uValue = (uint)value;
         int i = 0;
         do
         {
-            // Если данных > 7 бит — будет continuation, иначе последний байт.
             byte data = (byte)(uValue & DATA_MASK);
             uValue >>= DATA_BITS;
             bool hasMore = uValue != 0;
-            if (hasMore)
-                destination[i] = (byte)(data | CONTINUATION_MASK);
-            else
-                destination[i] = data;
+            destination[i] = (byte)(hasMore ? data | CONTINUATION_MASK : data);
             i++;
         } while (uValue != 0 && i < destination.Length);
 
         return i;
     }
 
-    /// <summary>
-    /// Decodes a VarInt from a contiguous <paramref name="source"/>.
-    /// </summary>
-    /// <param name="source">Byte span to read from</param>
-    /// <param name="value">Decoded value (0 on failure)</param>
-    /// <param name="bytesConsumed">Bytes consumed by the decoder (0 on failure)</param>
-    /// <returns>
-    /// <c>true</c> on success; <c>false</c> if data is insufficient (partial VarInt)
-    /// or invalid (continuation set on the 5th byte → corrupted data).
-    /// </returns>
-    /// <exception cref="ArgumentException">
-    /// <paramref name="source"/> is empty.
-    /// </exception>
+    /// <summary>Decodes a VarInt from a contiguous byte span.</summary>
+    /// <param name="source">Bytes to read from.</param>
+    /// <param name="value">Decoded value (0 on failure).</param>
+    /// <param name="bytesConsumed">Bytes consumed (0 on failure).</param>
+    /// <returns><c>true</c> on success; <c>false</c> if data is incomplete or malformed.</returns>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is empty.</exception>
     public static bool TryDecode(ReadOnlySpan<byte> source, out int value, out int bytesConsumed)
     {
         if (source.Length < 1)
-            throw new ArgumentException($"[{nameof(VarInt)}] Source buffer is empty.", nameof(source));
+            throw new ArgumentException("Source buffer is empty.", nameof(source));
 
-        // Копим в локал, коммитим только при успехе — на пути неудачи out остаётся чистым.
         int result = 0;
         int shift = 0;
 
@@ -118,27 +92,23 @@ public static class VarInt
             shift += DATA_BITS;
             if (shift > (MAX_SIZE - 1) * DATA_BITS)
             {
-                // 5-й байт, а continuation всё ещё выставлен — данные битые.
                 value = 0;
                 bytesConsumed = 0;
                 return false;
             }
         }
 
-        // Дошли до конца source, continuation не закрыт → частичные данные.
         value = 0;
         bytesConsumed = 0;
         return false;
     }
 
-    /// <summary>
-    /// Reads a VarInt from <paramref name="reader"/>, transparently crossing segment boundaries.
-    /// </summary>
-    /// <param name="reader">Sequence reader (advanced by the number of bytes read)</param>
-    /// <param name="value">Decoded value (0 on failure)</param>
+    /// <summary>Reads a VarInt from a <see cref="SequenceReader{T}"/>, advancing the reader.</summary>
+    /// <param name="reader">The sequence reader.</param>
+    /// <param name="value">Decoded value (0 on failure).</param>
+    /// <returns><see cref="ReadStatus"/> indicating the outcome.</returns>
     public static ReadStatus TryRead(ref SequenceReader<byte> reader, out int value)
     {
-        // Копим в локал, коммитим только при успехе — на пути неудачи out остаётся чистым.
         int result = 0;
         int shift = 0;
 
@@ -146,7 +116,6 @@ public static class VarInt
         {
             if (!reader.TryRead(out byte data))
             {
-                // Не хватило байт до целого VarInt — частичные данные.
                 value = 0;
                 return ReadStatus.Partial;
             }
@@ -162,7 +131,6 @@ public static class VarInt
             shift += DATA_BITS;
         }
 
-        // Прочитано MAX_SIZE байт, continuation не закрылся — VarInt битый.
         value = 0;
         return ReadStatus.Malformed;
     }

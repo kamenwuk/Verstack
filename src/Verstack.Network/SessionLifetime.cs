@@ -6,7 +6,7 @@ namespace Verstack.Network;
 
 /// <summary>
 /// Manages the entire lifetime of a single connection: read loop,
-/// framing via <see cref="PacketFrameScanner"/>, frame dispatch to an
+/// framing via <see cref="PacketFrameReader"/>, frame dispatch to an
 /// <see cref="IPacketHandler"/>, and finalization.
 /// </summary>
 /// <remarks>
@@ -54,17 +54,17 @@ public sealed class SessionLifetime
                     break;
 
                 // Scanner одноразовый, на один ReadAsync: после AdvanceTo буфер невалиден.
-                var scanner = new PacketFrameScanner(result.Buffer);
+                var frameReader = new PacketFrameReader(result.Buffer);
 
                 // Disconnect, запрошенный handler'ом внутри scanner-цикла:
                 // выходим из цикла, но не из read-цикла (выход — ниже, после flush).
                 bool drop = false;
-                while (scanner.MoveNext())
+                while (frameReader.MoveNext())
                 {
 #if DEBUG
-                    LogFrame(scanner.Current);
+                    LogFrame(frameReader.Current);
 #endif
-                    if (_handler.OnPacket(scanner.Current, writer) == PacketVerdict.Disconnect)
+                    if (_handler.OnPacket(frameReader.Current, writer) == PacketVerdict.Disconnect)
                     {
                         drop = true;
                         break;
@@ -73,8 +73,8 @@ public sealed class SessionLifetime
 
                 // Scanner — ref struct, не может жить через await. Поэтому вычитываем
                 // всё нужное в обычные value-локалы ДО await, после чего scanner «умирает».
-                SequencePosition consumed = scanner.ConsumedPosition;
-                VarInt.ReadStatus status = scanner.Status;
+                SequencePosition consumed = frameReader.ConsumedPosition;
+                VarInt.ReadStatus status = frameReader.Status;
 
                 // consumed=позиция scanner'а, examined=конец буфера.
                 // При Partial consumed = начало недочитанного кадра →

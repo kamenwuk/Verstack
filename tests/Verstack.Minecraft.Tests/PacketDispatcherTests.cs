@@ -74,9 +74,9 @@ public class PacketDispatcherTests
 
         Assert.Equal(PacketVerdict.Keep, verdict);
         // Ответ — framing-обёрнутый payload; разбираем framing обратно.
-        var scan = new PacketFrameScanner(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
+        var scan = new PacketFrameReader(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
         Assert.True(scan.MoveNext());
-        var pr = new PacketReader(scan.Current);
+        var pr = new PacketPayloadReader(scan.Current);
         Assert.True(pr.TryReadVarInt(out int packetId));
         Assert.Equal(ServerStatusSerializer.PACKET_ID, packetId);
     }
@@ -95,9 +95,9 @@ public class PacketDispatcherTests
 
         Assert.Equal(PacketVerdict.Keep, verdict);
         // Разбираем Pong: framing → VarInt(0x01) → long BE == исходный timestamp.
-        var scan = new PacketFrameScanner(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
+        var scan = new PacketFrameReader(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
         Assert.True(scan.MoveNext());
-        var pr = new PacketReader(scan.Current);
+        var pr = new PacketPayloadReader(scan.Current);
         Assert.True(pr.TryReadVarInt(out int packetId));
         Assert.Equal(0x01, packetId);
         Assert.True(pr.TryReadInt64BigEndian(out long echoed));
