@@ -9,4 +9,7 @@
         <Project Path="tests/Verstack.Minecraft.Tests/Verstack.Minecraft.Tests.csproj" />
         <Project Path="tests/Verstack.Protocol.Tests/Verstack.Protocol.Tests.csproj" />
     </Folder>
+    <Folder Name="/tools/">
+        <Project Path="tools/Verstack.Probe/Verstack.Probe.csproj" />
+    </Folder>
 </Solution>
