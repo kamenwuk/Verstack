@@ -4,9 +4,9 @@ Two types carry a connection from accept to disconnect. `TcpServer` owns the lis
 
 ## TcpServer
 
-`TcpServer` owns the listening socket. `Start()` binds and listens; `RunAsync()` runs the accept loop. For each accepted socket it creates a `SocketConnection` — which wraps the socket in a `Pipe` and starts background receive loops — calls `_factory.Create()` to get a fresh handler for that connection, and hands the pair (connection, handler) off to `SessionLifetime`.
+`TcpServer` owns the listening socket. `Start()` binds and listens; `AcceptConnectionsAsync()` runs the accept loop. For each accepted socket it creates a `SocketConnection` (which wraps the socket in a `Pipe` and starts background receive loops) and spawns a background task `HandleConnectionAsync` that owns the connection for its whole lifetime: it calls `_factory.Create()` for a fresh handler, hands the pair off to `SessionLifetime`, and disposes the connection in `finally`. The accept loop is not blocked by a single connection — sessions run in parallel.
 
-One limitation is worth knowing: `await session.RunAsync` blocks the accept loop, so the server currently handles a single connection at a time. Concurrency (a task per connection, or a pool) is a later milestone.
+Active tasks accumulate in `_sessionTasks` (under a `Lock`). Each one removes itself from the list on completion (a fire-and-forget `ContinueWith` with `ExecuteSynchronously`). On graceful shutdown — token cancellation or closing the listening socket — `AcceptConnectionsAsync` exits the loop and awaits still-running sessions via `Task.WhenAll`; the process will not exit until all of them close.
 
 ## SessionLifetime — the read loop
 

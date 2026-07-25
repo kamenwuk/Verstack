@@ -26,6 +26,6 @@ using var server = new TcpServer(endPoint, factory);
 server.Start();
 
 Console.WriteLine("[Verstack] Press Ctrl+C to stop.");
-await server.RunAsync(cts.Token);
+await server.AcceptConnectionsAsync(cts.Token);
 
 Console.WriteLine("[Verstack] Server stopped.");

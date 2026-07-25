@@ -75,5 +75,5 @@ Entry point (`Program.cs`) and composition root: constructs the status data and 
 - ✅ Handshake state machine: parses Handshake, switches phase, dispatches by packet id (Status Request → Status Response, Ping → Pong).
 - ✅ Status Response: a real Minecraft 1.21.6 client pinging the server list sees the MOTD, version, and player slots.
 - ⬜ Login — the next protocol phase: authentication, encryption, compression.
-- ⬜ Concurrency — the server handles a single connection at a time; the accept loop blocks on `SessionLifetime.RunAsync`.
+- ✅ Concurrency — the accept loop is not blocked by a session: each connection is serviced in a background task, and on shutdown the server awaits stragglers via `Task.WhenAll`.
 - ⬜ Dropping the connection on a garbage packet — today this is log + ignore; the `void OnPacket` contract does not let a handler say "drop."

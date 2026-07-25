@@ -1,4 +1,5 @@
 using Pipelines.Sockets.Unofficial;
+using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Net;
 
@@ -14,6 +15,8 @@ public sealed class TcpServer : IDisposable
     
     private readonly IPEndPoint _endPoint;
     private readonly IPacketHandlerFactory _factory;
+    private readonly List<Task> _sessionTasks = new();
+    private readonly Lock _sessionTasksLock = new();
     private Socket? _listenSocket;
     
     /// <summary>
@@ -51,11 +54,11 @@ public sealed class TcpServer : IDisposable
     /// <see cref="SocketConnection"/> (wraps the Socket in a Pipe) and delegates
     /// the rest of the connection's lifetime to <see cref="SessionLifetime"/>.
     /// </summary>
-    public async Task RunAsync(CancellationToken token)
+    public async Task AcceptConnectionsAsync(CancellationToken token)
     {
         if (_listenSocket is null)
             throw new InvalidOperationException(
-                $"[{nameof(TcpServer)}] Start() must be called before {nameof(RunAsync)}().");
+                $"[{nameof(TcpServer)}] Start() must be called before {nameof(AcceptConnectionsAsync)}().");
 
         while (!token.IsCancellationRequested)
         {
@@ -83,16 +86,72 @@ public sealed class TcpServer : IDisposable
             }
 
             // Натягиваем Pipe на Socket: библиотека запускает фоновый приём в pipe.
-            using var connection = SocketConnection.Create(client);
+            var connection = SocketConnection.Create(client);
             Console.WriteLine($"[{nameof(TcpServer)}] Accepted from {client.RemoteEndPoint}.");
             
-            // Вся жизнь соединения — в SessionLifetime (SRP: TcpServer только accept).
-            // Оговорка: await блокирует accept-цикл, поэтому сервер держит одно
-            // соединение за раз. Конкурентность — отдельный шаг (Task.Run / fire-and-forget).
+            var sessionTask = HandleConnectionAsync(connection, token);
+            lock (_sessionTasksLock)
+            {
+                _sessionTasks.Add(sessionTask);
+            }
+            
+            // Когда сессия завершится — уберём её из списка, чтобы не копить
+            // завершённые Task'и (утечка памяти при долгой жизни сервера).
+            // ExecuteSynchronously: continuation выполнится на потоке, завершившем
+            // задачу, без постановки в threadpool — дёшево на accept-пути (не горячий путь).
+            _ = sessionTask.ContinueWith(
+                completedTask =>
+                {
+                    lock (_sessionTasksLock)
+                    {
+                        _sessionTasks.Remove(completedTask);
+                    }
+                }, TaskContinuationOptions.ExecuteSynchronously);
+        }
+        
+        // После выхода из accept-цикла — ждём все ещё живые сессии. Каждая из них
+        // крутится по тому же token, поэтому завершится по Cancel без вечного ожидания.
+        // Программа (Program.cs) выходит только когда все соединения закрыты — graceful shutdown.
+        Task[] pending;
+        lock (_sessionTasksLock)
+        {
+            pending = _sessionTasks.ToArray();
+        }
+
+        if (pending.Length > 0)
+        {
+            Console.WriteLine($"[{nameof(TcpServer)}] Awaiting {pending.Length} active session(s) to close...");
+            await Task.WhenAll(pending).ConfigureAwait(false);
+        }
+    }
+    
+    /// <summary>
+    /// Жизнь одного соединения, запущенная в фоне. Точка ownership для
+    /// <see cref="IDuplexPipe"/>: вся обработка и финализация здесь.
+    /// try/catch обязателен — задача fire-and-forget, никто не await'ит её
+    /// напрямую, без перехвата исключение стало бы UnobservedTaskException.
+    /// </summary>
+    private async Task HandleConnectionAsync(IDuplexPipe connection, CancellationToken token)
+    {
+        try
+        {
             var session = new SessionLifetime(_factory.Create());
             await session.RunAsync(connection, token).ConfigureAwait(false);
-            
-            Console.WriteLine($"[{nameof(TcpServer)}] Connection from {client.RemoteEndPoint} closed.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Штатная остановка по токену — тишина.
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{nameof(TcpServer)}] Session error: {ex.GetType().Name}: {ex.Message}.");
+        }
+        finally
+        {
+            // Dispose здесь, а не в accept-цикле: это единственный реальный владелец connection.
+            // Поле connection пришло как IDuplexPipe, но SocketConnection — IDisposable.
+            if (connection is IDisposable disposable)
+                disposable.Dispose();
         }
     }
     
