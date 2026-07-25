@@ -1,26 +1,20 @@
 # PacketFrameReader — чтение фреймов
 > `src/Verstack.Protocol/PacketFrameReader.cs`
 
-Читает кадры с VarInt-префиксом длины из последовательности байт.  
+Читает кадры с VarInt-префиксом длины из последовательности байт.
 Решает задачу фрейминга поверх TCP-потока: разбивает сплошной поток байт на отдельные пакеты Minecraft.
 
-Поддерживает итерацию через `foreach`.
+Поддерживает и итерацию через foreach, и чтение сжатых кадров (zlib).
 
-## Зачем нужен фрейминг
+## Сжатие
 ---
 
-TCP передаёт поток байт без границ сообщений.  
-Один `ReadAsync` может вернуть несколько пакетов, обрывок пакета или часть заголовка.
+Если в конструктор передан IPacketDecompressor, ридер ожидает, что каждый кадр содержит VarInt(dataLength) после внешней длины.
 
-Правило «VarInt-длина + тело» указывает, где заканчивается один пакет и начинается следующий:
+- Если dataLength == 0: ридер отдаёт несжатый payload как есть (0 аллокаций).
+- Если dataLength > 0: ридер арендует буфер через ArrayPool<byte>.Shared.Rent(dataLength), разжимает туда данные и отдаёт ReadOnlySequence<byte>, указывающую на этот буфер.
 
-```
-[ VarInt: длина payload ][ payload: N байт ]
-```
-
-`PacketFrameReader` читает VarInt, проверяет наличие полного payload и отдаёт его как `ReadOnlySequence<byte>`.
-
-Подробнее о кодировании длины — [VarInt](varint.md).
+> Важно: так как ридер может арендовать память, он реализует IDisposable. Вызывающий код (например, SessionLifetime) должен использовать блок using или вызывать Dispose(), чтобы вернуть буфер в пул.
 
 ## Состояния
 ---
@@ -35,15 +29,18 @@ TCP передаёт поток байт без границ сообщений.
 ---
 
 ```csharp
-public ref struct PacketFrameReader
+public ref struct PacketFrameReader : IDisposable
 {
-    public PacketFrameReader(ReadOnlySequence<byte> input, int maxPacketSize = PacketFrameWriter.DefaultMaxPacketSize);
+    public PacketFrameReader(ReadOnlySequence<byte> input, 
+        int maxPacketSize = PacketFrameWriter.DefaultMaxPacketSize, 
+        IPacketDecompressor? decompressor = null);
 
     public bool MoveNext();
     public ReadOnlySequence<byte> Current { get; }
     public VarInt.ReadStatus Status { get; }
     public SequencePosition ConsumedPosition { get; }
     public PacketFrameReader GetEnumerator();
+    public void Dispose();
 }
 ```
 

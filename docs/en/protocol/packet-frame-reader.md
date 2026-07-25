@@ -1,41 +1,44 @@
 # PacketFrameReader — Frame Reader
 > `src/Verstack.Protocol/PacketFrameReader.cs`
 
-Reads VarInt-length-prefixed frames from a byte sequence.  
-Handles TCP stream framing: splits a continuous flow of bytes into complete Minecraft packets.
+Reads VarInt-length-prefixed frames from a byte sequence.
+Solves the framing problem over a TCP stream: splits a continuous byte stream into individual Minecraft packets.
 
-Supports `foreach` iteration.
+Supports both foreach iteration and reading compressed frames (zlib).
 
-## Why framing is needed
+## Compression
 ---
 
-TCP delivers a stream of bytes — it has no concept of message boundaries.  
-A single read may contain multiple packets, a partial packet, or a fragment of a header.
+If an IPacketDecompressor is passed to the constructor, the reader expects each frame to contain VarInt(dataLength) after the outer length.
 
-The VarInt-length-prefix rule marks where one packet ends and the next begins:
+- If dataLength == 0: the reader yields the uncompressed payload as-is (0 allocations).
+- If dataLength > 0: the reader rents a buffer via ArrayPool<byte>.Shared.Rent(dataLength), decompresses the data into it, and yields a ReadOnlySequence<byte> pointing to this buffer.
 
-```
-[ VarInt: payload length ][ payload: N bytes ]
-```
+> Important: Because the reader can rent memory, it implements IDisposable. The calling code (e.g., SessionLifetime) must use a using block or call Dispose() to return the buffer to the pool.
 
-`PacketFrameReader` consumes the VarInt, checks whether the full payload is available,
-and yields it as a `ReadOnlySequence<byte>`.
+| Status| Meaning|
+|--------|----------|
+| `Complete` | Frame successfully read (MoveNext() returned true). |
+| `Partial`  | Not enough data — wait for the next ReadAsync. |
+| `Malformed`| Continuation bit set on the 5th byte, length exceeds limit, or decompression error. Drop the connection. |
 
-See [VarInt](varint.md) for the length encoding.
 
 ## API
 ---
 
 ```csharp
-public ref struct PacketFrameReader
+public ref struct PacketFrameReader : IDisposable
 {
-    public PacketFrameReader(ReadOnlySequence<byte> input, int maxPacketSize = PacketFrameWriter.DefaultMaxPacketSize);
+    public PacketFrameReader(ReadOnlySequence<byte> input, 
+        int maxPacketSize = PacketFrameWriter.DefaultMaxPacketSize, 
+        IPacketDecompressor? decompressor = null);
 
     public bool MoveNext();
     public ReadOnlySequence<byte> Current { get; }
     public VarInt.ReadStatus Status { get; }
     public SequencePosition ConsumedPosition { get; }
     public PacketFrameReader GetEnumerator();
+    public void Dispose();
 }
 ```
 

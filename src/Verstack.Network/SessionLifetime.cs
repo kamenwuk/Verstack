@@ -19,13 +19,16 @@ namespace Verstack.Network;
 public sealed class SessionLifetime
 {
     private readonly IPacketHandler _handler;
+    private readonly IPacketDecompressor? _decompressor;
 
     /// <param name="handler">Reacts to each frame's payload; may write
     /// responses to the connection's output.</param>
-    public SessionLifetime(IPacketHandler handler)
+    /// <param name="decompressor">Decompressor instance. If null, compression is disabled.</param>
+    public SessionLifetime(IPacketHandler handler, IPacketDecompressor? decompressor = null)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
+        _decompressor = decompressor;
     }
 
     /// <summary>
@@ -53,40 +56,36 @@ public sealed class SessionLifetime
                 if (result.IsCanceled)
                     break;
 
-                // Scanner одноразовый, на один ReadAsync: после AdvanceTo буфер невалиден.
-                var frameReader = new PacketFrameReader(result.Buffer);
-
-                // Disconnect, запрошенный handler'ом внутри scanner-цикла:
-                // выходим из цикла, но не из read-цикла (выход — ниже, после flush).
                 bool drop = false;
-                while (frameReader.MoveNext())
+                SequencePosition consumed;
+                VarInt.ReadStatus status;
+
+                // Классический using-блок ограничивает область видимости ref struct.
+                // Dispose вызовется на закрывающей скобке, ДО await FlushAsync ниже.
+                using (var frameReader = new PacketFrameReader(result.Buffer, decompressor: _decompressor))
                 {
-#if DEBUG
-                    LogFrame(frameReader.Current);
-#endif
-                    if (_handler.OnPacket(frameReader.Current, writer) == PacketVerdict.Disconnect)
+                    while (frameReader.MoveNext())
                     {
-                        drop = true;
-                        break;
+#if DEBUG
+                        LogFrame(frameReader.Current);
+#endif
+                        if (_handler.OnPacket(frameReader.Current, writer) == PacketVerdict.Disconnect)
+                        {
+                            drop = true;
+                            break;
+                        }
                     }
-                }
+                    // Сохраняем значения до выхода из using-блока
+                    consumed = frameReader.ConsumedPosition;
+                    status = frameReader.Status;
+                } // Здесь фрейм ридер "умирает" и возвращает буферы в ArrayPool
 
-                // Scanner — ref struct, не может жить через await. Поэтому вычитываем
-                // всё нужное в обычные value-локалы ДО await, после чего scanner «умирает».
-                SequencePosition consumed = frameReader.ConsumedPosition;
-                VarInt.ReadStatus status = frameReader.Status;
-
-                // consumed=позиция scanner'а, examined=конец буфера.
-                // При Partial consumed = начало недочитанного кадра →
-                // Pipe оставит хвост и подбросит ещё данных.
                 reader.AdvanceTo(consumed, result.Buffer.End);
 
                 // Handler пишет в буфер sync; flush — наша ответственность,
                 // чтобы контролировать точку flush'а (и будущий batching).
                 await writer.FlushAsync(token).ConfigureAwait(false);
 
-                // Drop по вердикту handler'а или Malformed-кадру: причина уже
-                // залогирована (handler'ом или тут, если Malformed-кадр), рвём.
                 if (drop || status == VarInt.ReadStatus.Malformed)
                 {
                     Console.WriteLine($"[{nameof(SessionLifetime)}] Malformed frame — dropping connection.");
@@ -99,8 +98,6 @@ public sealed class SessionLifetime
         }
         finally
         {
-            // Финализация Pipe обязательна — иначе утечка. CompleteAsync в finally,
-            // чтобы сработало при любом выходе (отмена, ошибка, Malformed).
             await reader.CompleteAsync().ConfigureAwait(false);
         }
     }

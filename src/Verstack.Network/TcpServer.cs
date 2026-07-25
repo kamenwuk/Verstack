@@ -2,6 +2,7 @@ using Pipelines.Sockets.Unofficial;
 using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Net;
+using Verstack.Protocol;
 
 namespace Verstack.Network;
 
@@ -15,6 +16,7 @@ public sealed class TcpServer : IDisposable
     
     private readonly IPEndPoint _endPoint;
     private readonly IPacketHandlerFactory _factory;
+    private readonly IPacketDecompressor? _decompressor;
     private readonly List<Task> _sessionTasks = new();
     private readonly Lock _sessionTasksLock = new();
     private Socket? _listenSocket;
@@ -22,12 +24,16 @@ public sealed class TcpServer : IDisposable
     /// <summary>
     /// Creates a server bound to <paramref name="endPoint"/>.
     /// </summary>
-    public TcpServer(IPEndPoint endPoint, IPacketHandlerFactory factory)
+    /// <param name="endPoint">The endpoint to listen on.</param>
+    /// <param name="factory">Factory for creating packet handlers.</param>
+    /// <param name="decompressor">Decompressor instance. If null, compression is disabled.</param>
+    public TcpServer(IPEndPoint endPoint, IPacketHandlerFactory factory, IPacketDecompressor? decompressor = null)
     {
         ArgumentNullException.ThrowIfNull(endPoint);
         ArgumentNullException.ThrowIfNull(factory);
         _endPoint = endPoint;
         _factory = factory;
+        _decompressor = decompressor;
     }
     
     /// <summary>
@@ -135,7 +141,8 @@ public sealed class TcpServer : IDisposable
     {
         try
         {
-            var session = new SessionLifetime(_factory.Create());
+            // Передаём декомпрессор в SessionLifetime
+            var session = new SessionLifetime(_factory.Create(), _decompressor);
             await session.RunAsync(connection, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
