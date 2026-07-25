@@ -42,6 +42,6 @@ Short bodies decode zero-copy through the contiguous-span branch; a segmented pa
 
 ## Failure
 
-Every method returns `false` on a short read, a negative string length, or a length that exceeds the remaining frame. The dispatcher does not differentiate causes — they are all "malformed packet, log + ignore." Per-cause differentiation (if ever needed for debugging) belongs in the return values, not the contract.
+Every method returns `false` on a short read, a negative string length, or a length that exceeds the remaining frame. The causes are not differentiated: a single `false` outcome is enough — how the dispatcher treats it is described at the Minecraft layer.
 
 → [Protocol layer](index.md)

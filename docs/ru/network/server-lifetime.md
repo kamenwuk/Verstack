@@ -15,12 +15,17 @@
 ```
 result = await reader.ReadAsync(token)
 scanner = new PacketFrameScanner(result.Buffer)
+drop = false
 while scanner.MoveNext():
-    handler.OnPacket(scanner.Current, writer)   // handler пишет в буфер (sync)
+    if handler.OnPacket(scanner.Current, writer) == Disconnect:   // handler пишет в буфер (sync)
+        drop = true
+        break
 // scanner — ref struct, вычитываем его результат в локалы ДО await ниже
 consumed, status = scanner.ConsumedPosition, scanner.Status
 reader.AdvanceTo(consumed, result.Buffer.End)
 await writer.FlushAsync(token)
+if drop or status == Malformed:
+    break    // рвём соединение
 ```
 
 В этом цикле важны два тонких места, оба легко испортить.
@@ -32,5 +37,9 @@ await writer.FlushAsync(token)
 ## Точка flush'а
 
 Handler пишет в `PipeWriter` синхронно и возвращает управление; `SessionLifetime` вызывает `FlushAsync` один раз за чтение, после того как все кадры из этого чтения диспетчеризованы. Так точка flush'а собрана в одном месте и оставляет пространство для будущего батчинга.
+
+## Точка решения «рвать»
+
+Цикл выходит и рвёт соединение в двух случаях: handler запросил `PacketVerdict.Disconnect` для конкретного кадра, либо scanner вернул `VarInt.ReadStatus.Malformed` (битый length-prefix кадра). Это два разных источника «мусора», но обе ветки сходятся в одно `break`. Disconnect, запрошенный handler'ом, выходит из scanner-цикла через `break` и доходит до той же проверки **после** flush'а — поэтому ответ, записанный handler'ом для этого кадра, уходит до разрыва. Какой кадр считать «мусорным» — решает handler (см. [диспетчер](../minecraft/dispatcher.md)); SessionLifetime лишь чтёт вердикт. Очистка pipe (`CompleteAsync`) всегда в `finally`.
 
 → [Packet handler](packet-handler.md)

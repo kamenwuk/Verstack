@@ -5,7 +5,7 @@ Packet handler — шов между Network и вышележащим слое�
 ``` csharp
 public interface IPacketHandler
 {
-    void OnPacket(ReadOnlySequence<byte> payload, PipeWriter output);
+    PacketVerdict OnPacket(ReadOnlySequence<byte> payload, PipeWriter output);
 }
 
 public interface IPacketHandlerFactory
@@ -14,7 +14,7 @@ public interface IPacketHandlerFactory
 }
 ```
 
-`IPacketHandler.OnPacket` — реакция на один кадр. `payload` — тело целого кадра, уже очищенное от префикса длины scanner'ом. `output` — сторона записи соединения; handler пишет сюда обрамлённые ответы через `PacketFraming`. Метод синхронный — handler только буферизует; flush — задача `SessionLifetime`.
+`IPacketHandler.OnPacket` — реакция на один кадр. `payload` — тело целого кадра, уже очищенное от префикса длины scanner'ом. `output` — сторона записи соединения; handler пишет сюда обрамлённые ответы через `PacketFraming`. Метод синхронный — handler только буферизует; flush — задача `SessionLifetime`. Возврат `PacketVerdict` — вердикт о судьбе соединения: `Keep` (default) — продолжаем чтение, `Disconnect` — рвём. Вердикт SessionLifetime чтёт **после** flush'а, так что ответ, записанный для этого кадра, уходит до разрыва. Когда handler возвращает `Disconnect` — см. [диспетчер](../minecraft/dispatcher.md); как `SessionLifetime` на это реагирует — [точка решения «рвать»](server-lifetime.md).
 
 `IPacketHandlerFactory.Create` — точка рождения handler'а на каждое соединение. Она существует потому, что у handler'а есть per-connection состояние (текущая фаза протокола), и это состояние не может жить в singleton-объекте, шаримом между всеми соединениями. `TcpServer` вызывает `Create()` в accept-цикле и передаёт свежий handler в `SessionLifetime`. Детали того, что именно хранит handler — на уровне Minecraft; здесь зафиксирован только контракт: «каждое соединение получает свой handler».
 

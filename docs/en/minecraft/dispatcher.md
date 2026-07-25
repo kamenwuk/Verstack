@@ -26,17 +26,19 @@ The dispatcher implements `IPacketHandler.OnPacket`. Internally:
 
 The Status-phase routing table:
 
-| Phase | packet id | Action |
-|---|---|---|
-| `Handshake` | `0x00` | `HandshakePacketParser.TryParse` → `_phase = Status` (on `nextState = Status`) |
-| `Status` | `0x00` | `ServerStatusSerializer.Write` → framing → reply |
-| `Status` | `0x01` | Reads `long timestamp` → writes Pong `[0x01][timestamp, BE]` → framing → reply |
+| Phase | packet id | Action | Verdict |
+|---|---|---|---|
+| `Handshake` | `0x00` | `HandshakePacketParser.TryParse` → `_phase = Status` (on `nextState = Status`) | `Keep` (or `Disconnect` if the body fails to parse) |
+| `Status` | `0x00` | `ServerStatusSerializer.Write` → framing → reply | `Keep` |
+| `Status` | `0x01` | Reads `long timestamp` → writes Pong `[0x01][timestamp, BE]` → framing → reply | `Keep` (or `Disconnect` if the timestamp is missing) |
 
-Everything else (unknown packet id, phase mismatch) is the default branch: log + ignore.
+Everything else (no packet id, unknown packet id, phase mismatch) is the default branch: log + `Disconnect`. `SessionLifetime` honors the verdict [after the flush](../network/server-lifetime.md).
 
-## What is out of scope
+## What gets dropped, what does not
 
-The dispatcher does not drop the connection on a garbage packet — the `void OnPacket` contract does not let it say "drop." Today this is log + ignore; dropping is a separate step that would require changing the contract (e.g., a `bool` or `enum` return from `OnPacket`). Likewise, `nextState = Login` is logged while the phase stays Handshake: safe, because the client's next packet still falls into the default branch.
+The dispatcher drops the connection on frames it cannot handle: a frame without a packet id, a Handshake/Ping body that fails to parse, or a packet id not valid for the current phase. These are garbage — a legitimate client never sends them. Dropping immediately means the client gets fast feedback and the server does not spend cycles continuing a dialog with a broken peer.
+
+`nextState = Login` is the **exception**: it is a valid Handshake with an unimplemented `nextState`. Dropping here would tear down legitimate clients trying to log in. It is logged, the phase stays Handshake, the verdict is `Keep`. The client's next packet still falls into the default branch and gets dropped anyway.
 
 The Pong is written inline, without a dedicated serializer: the payload is trivial (`VarInt(0x01)` + 8 bytes big-endian), and a class for it would be a silver bullet. Reading Ping (one `long timestamp` field) is also inline. The asymmetry with Status Response (which has a serializer) is justified by different complexity.
 

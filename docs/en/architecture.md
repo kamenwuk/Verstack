@@ -17,7 +17,8 @@ src/
 └── Verstack.App/                      ← Program.cs, entry point. AssemblyName=Verstack
 tests/
 ├── Verstack.Protocol.Tests/           ← xUnit, exercises Protocol via Span/Sequence
-└── Verstack.Minecraft.Tests/          ← xUnit, exercises Minecraft serialization via IBufferWriter
+├── Verstack.Minecraft.Tests/          ← xUnit, exercises Minecraft serialization via IBufferWriter
+└── Verstack.Network.Tests/            ← xUnit, exercises SessionLifetime's read loop via a pair of Pipes (no socket)
 ```
 
 ## How dependencies run
@@ -76,4 +77,4 @@ Entry point (`Program.cs`) and composition root: constructs the status data and 
 - ✅ Status Response: a real Minecraft 1.21.6 client pinging the server list sees the MOTD, version, and player slots.
 - ⬜ Login — the next protocol phase: authentication, encryption, compression.
 - ✅ Concurrency — the accept loop is not blocked by a session: each connection is serviced in a background task, and on shutdown the server awaits stragglers via `Task.WhenAll`.
-- ⬜ Dropping the connection on a garbage packet — today this is log + ignore; the `void OnPacket` contract does not let a handler say "drop."
+- ✅ Dropping the connection on a garbage packet — the handler returns `PacketVerdict.Disconnect`, and `SessionLifetime` tears the connection down after the flush.

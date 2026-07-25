@@ -39,61 +39,61 @@ public sealed class PacketDispatcher : IPacketHandler
     }
 
     /// <inheritdoc/>
-    public void OnPacket(ReadOnlySequence<byte> payload, PipeWriter output)
+    public PacketVerdict OnPacket(ReadOnlySequence<byte> payload, PipeWriter output)
     {
         var reader = new PacketReader(payload);
 
         // packet id читает сам диспетчер — по нему свитчуется роутинг.
         if (!reader.TryReadVarInt(out int packetId))
         {
-            Console.WriteLine($"[{nameof(PacketDispatcher)}] Frame without packet id — ignoring.");
-            return;
+            Console.WriteLine($"[{nameof(PacketDispatcher)}] Frame without packet id — dropping connection.");
+            return PacketVerdict.Disconnect;
         }
 
         switch ((_phase, packetId))
         {
             case (SessionPhase.Handshake, HandshakePacketParser.PACKET_ID):
-                HandleHandshake(ref reader);
-                break;
+                return HandleHandshake(ref reader);
 
             case (SessionPhase.Status, ServerStatusSerializer.PACKET_ID):
                 HandleStatusRequest(output);
-                break;
+                return PacketVerdict.Keep;
 
             case (SessionPhase.Status, PONG_PACKET_ID):
-                HandlePing(ref reader, output);
-                break;
+                return HandlePing(ref reader, output);
 
             default:
                 Console.WriteLine(
                     $"[{nameof(PacketDispatcher)}] Unexpected packet id 0x{packetId:X2} " +
-                    $"in {nameof(SessionPhase)}.{_phase} — ignoring.");
-                break;
+                    $"in {nameof(SessionPhase)}.{_phase} — dropping connection.");
+                return PacketVerdict.Disconnect;
         }
     }
 
     // Разбирает Handshake и переводит фазу. Login пока не реализован — фаза не
     // меняется, логируется. Остаться в Handshake безопасно: следующий пакет от
-    // клиента всё равно уйдёт в default-ветку и будет проигнорирован.
-    private void HandleHandshake(ref PacketReader reader)
+    // клиента всё равно уйдёт в default-ветку и порвёт соединение.
+    private PacketVerdict HandleHandshake(ref PacketReader reader)
     {
         if (!HandshakePacketParser.TryParse(ref reader, out HandshakePacket packet))
         {
-            Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Handshake — ignoring.");
-            return;
+            Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Handshake — dropping connection.");
+            return PacketVerdict.Disconnect;
         }
 
         switch (packet.NextState)
         {
             case HandshakeNextState.Status:
                 _phase = SessionPhase.Status;
-                break;
+                return PacketVerdict.Keep;
 
             case HandshakeNextState.Login:
                 Console.WriteLine(
                     $"[{nameof(PacketDispatcher)}] Login phase not implemented — staying in {nameof(SessionPhase.Handshake)}.");
-                break;
+                return PacketVerdict.Keep;
         }
+
+        return PacketVerdict.Keep; // недостижимо — switch покрывает все значения enum
     }
 
     private void HandleStatusRequest(PipeWriter output)
@@ -103,12 +103,12 @@ public sealed class PacketDispatcher : IPacketHandler
         PacketFraming.Write(output, _scratch.WrittenSpan);
     }
 
-    private void HandlePing(ref PacketReader reader, PipeWriter output)
+    private PacketVerdict HandlePing(ref PacketReader reader, PipeWriter output)
     {
         if (!reader.TryReadInt64BigEndian(out long timestamp))
         {
-            Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Ping — ignoring.");
-            return;
+            Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Ping — dropping connection.");
+            return PacketVerdict.Disconnect;
         }
 
         // Pong payload: [VarInt(PONG_PACKET_ID)][timestamp, 8 байт big-endian].
@@ -119,5 +119,6 @@ public sealed class PacketDispatcher : IPacketHandler
         _scratch.Advance(written + sizeof(long));
 
         PacketFraming.Write(output, _scratch.WrittenSpan);
+        return PacketVerdict.Keep;
     }
 }

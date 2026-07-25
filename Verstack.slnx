@@ -7,6 +7,7 @@
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/Verstack.Minecraft.Tests/Verstack.Minecraft.Tests.csproj" />
+        <Project Path="tests/Verstack.Network.Tests/Verstack.Network.Tests.csproj" />
         <Project Path="tests/Verstack.Protocol.Tests/Verstack.Protocol.Tests.csproj" />
     </Folder>
     <Folder Name="/tools/">

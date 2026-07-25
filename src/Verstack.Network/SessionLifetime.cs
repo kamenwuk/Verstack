@@ -56,12 +56,19 @@ public sealed class SessionLifetime
                 // Scanner одноразовый, на один ReadAsync: после AdvanceTo буфер невалиден.
                 var scanner = new PacketFrameScanner(result.Buffer);
 
+                // Disconnect, запрошенный handler'ом внутри scanner-цикла:
+                // выходим из цикла, но не из read-цикла (выход — ниже, после flush).
+                bool drop = false;
                 while (scanner.MoveNext())
                 {
 #if DEBUG
                     LogFrame(scanner.Current);
 #endif
-                    _handler.OnPacket(scanner.Current, writer);
+                    if (_handler.OnPacket(scanner.Current, writer) == PacketVerdict.Disconnect)
+                    {
+                        drop = true;
+                        break;
+                    }
                 }
 
                 // Scanner — ref struct, не может жить через await. Поэтому вычитываем
@@ -78,7 +85,9 @@ public sealed class SessionLifetime
                 // чтобы контролировать точку flush'а (и будущий batching).
                 await writer.FlushAsync(token).ConfigureAwait(false);
 
-                if (status == VarInt.ReadStatus.Malformed)
+                // Drop по вердикту handler'а или Malformed-кадру: причина уже
+                // залогирована (handler'ом или тут, если Malformed-кадр), рвём.
+                if (drop || status == VarInt.ReadStatus.Malformed)
                 {
                     Console.WriteLine($"[{nameof(SessionLifetime)}] Malformed frame — dropping connection.");
                     break;

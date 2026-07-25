@@ -26,17 +26,19 @@
 
 Таблица маршрутов Status-фазы:
 
-| Фаза | packet id | Действие |
-|---|---|---|
-| `Handshake` | `0x00` | `HandshakePacketParser.TryParse` → `_phase = Status` (при `nextState = Status`) |
-| `Status` | `0x00` | `ServerStatusSerializer.Write` → framing → ответ |
-| `Status` | `0x01` | Читает `long timestamp` → пишет Pong `[0x01][timestamp, BE]` → framing → ответ |
+| Фаза | packet id | Действие | Вердикт |
+|---|---|---|---|
+| `Handshake` | `0x00` | `HandshakePacketParser.TryParse` → `_phase = Status` (при `nextState = Status`) | `Keep` (или `Disconnect`, если тело не парсится) |
+| `Status` | `0x00` | `ServerStatusSerializer.Write` → framing → ответ | `Keep` |
+| `Status` | `0x01` | Читает `long timestamp` → пишет Pong `[0x01][timestamp, BE]` → framing → ответ | `Keep` (или `Disconnect`, если нет timestamp) |
 
-Всё остальное (неизвестный packet id, несоответствие фазе) — ветка по умолчанию: лог + игнор.
+Всё остальное (нет packet id, неизвестный packet id, несоответствие фазе) — ветка по умолчанию: лог + `Disconnect`. `SessionLifetime` чтёт вердикт [после flush'а](../network/server-lifetime.md).
 
-## Что не входит
+## Что рвёт, а что нет
 
-Диспетчер не рвёт соединение на мусорный пакет — контракт `void OnPacket` не позволяет сказать «рви». Сейчас это лог + игнор; разрыв — отдельный шаг, который потребует смены контракта (например, `bool` или `enum`-возврат из `OnPacket`). Аналогично, `nextState = Login` логируется, а фаза остаётся Handshake: безопасно, потому что следующий пакет от клиента всё равно уйдёт в ветку по умолчанию.
+Диспетчер рвёт соединение на кадры, которые нельзя обработать: кадр без packet id, тело Handshake/Ping, которое не парсится, или packet id, не предусмотренный текущей фазой. Это мусор — легитимный клиент их не пришлёт. Рвать сразу означает: клиент получает быстрый фидбэк, сервер не тратит циклы на продолжение диалога с кривым пиром.
+
+`nextState = Login` — **исключение**: это валидный Handshake с не реализованным nextState. Рвать здесь = рвать валидных клиентов, которые хотят логиниться. Логируется, фаза остаётся Handshake, вердикт `Keep`. Следующий пакет от клиента всё равно уйдёт в default-ветку и порвёт соединение.
 
 Pong пишется inline, без отдельного сериализатора: payload тривиален (`VarInt(0x01)` + 8 байт big-endian), заводить под него класс — серебряная пуля. Чтение Ping (одно поле `long timestamp`) тоже inline. Асимметрия с Status Response (там сериализатор есть) оправдана разной сложностью.
 

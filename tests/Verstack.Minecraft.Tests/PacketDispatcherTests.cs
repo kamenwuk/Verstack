@@ -5,14 +5,15 @@ using System.Text;
 using Verstack.Minecraft.Handshake;
 using Verstack.Minecraft.Session;
 using Verstack.Minecraft.Status;
+using Verstack.Network;
 using Verstack.Protocol;
 
 namespace Verstack.Minecraft.Tests;
 
 /// <summary>
 /// PacketDispatcher tests: phase transitions, per-(phase,packetId) routing,
-/// Ping→Pong echo, malformed handling. Driven through BufferWriterPipeAdapter —
-/// no socket, synchronous.
+/// Ping→Pong echo, verdict on malformed/unexpected frames. Driven through
+/// BufferWriterPipeAdapter — no socket, synchronous.
 /// </summary>
 public class PacketDispatcherTests
 {
@@ -24,10 +25,11 @@ public class PacketDispatcherTests
         var (dispatcher, adapter) = Create();
         byte[] frame = BuildHandshakeBody(774, "localhost", 25565, nextState: 1);
 
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
-        // Handshake ничего не пишет — но меняет фазу. Косвенная проверка: следующий
+        // Handshake ничего не пишет — но меняет фазу. Косвенная проверка фазы: следующий
         // Status Request должен быть принят, а не уйти в default-ветку.
+        Assert.Equal(PacketVerdict.Keep, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 
@@ -37,22 +39,24 @@ public class PacketDispatcherTests
         var (dispatcher, adapter) = Create();
         byte[] frame = BuildHandshakeBody(774, "localhost", 25565, nextState: 2);
 
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
-        // Login не реализован — фаза не меняется, ответа нет.
+        // Login не реализован — фаза не меняется, ответа нет, соединение держим.
+        Assert.Equal(PacketVerdict.Keep, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 
     [Fact]
-    public void OnPacket_StatusRequestBeforeHandshake_Ignored()
+    public void OnPacket_StatusRequestBeforeHandshake_ReturnsDisconnect()
     {
         // В Handshake-фазе packetId=0x00 трактуется как Handshake, не Status Request.
-        // Пустое тело не парсится как Handshake → Malformed → игнор.
+        // Пустое тело не парсится как Handshake → Malformed → рвём соединение.
         var (dispatcher, adapter) = Create();
         byte[] frame = BuildStatusRequestBody();
 
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 
@@ -65,8 +69,9 @@ public class PacketDispatcherTests
         TransitionToStatus(dispatcher, adapter);
 
         byte[] frame = BuildStatusRequestBody();
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
+        Assert.Equal(PacketVerdict.Keep, verdict);
         // Ответ — framing-обёрнутый payload; разбираем framing обратно.
         var scan = new PacketFrameScanner(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
         Assert.True(scan.MoveNext());
@@ -85,8 +90,9 @@ public class PacketDispatcherTests
 
         long timestamp = 0x0123_4567_89AB_CDEF;
         byte[] frame = BuildPingBody(timestamp);
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
+        Assert.Equal(PacketVerdict.Keep, verdict);
         // Разбираем Pong: framing → VarInt(0x01) → long BE == исходный timestamp.
         var scan = new PacketFrameScanner(new ReadOnlySequence<byte>(adapter.Buffer.WrittenMemory));
         Assert.True(scan.MoveNext());
@@ -98,40 +104,43 @@ public class PacketDispatcherTests
     }
 
     [Fact]
-    public void OnPacket_MalformedPing_WritesNothing()
+    public void OnPacket_MalformedPing_ReturnsDisconnect()
     {
         var (dispatcher, adapter) = Create();
         TransitionToStatus(dispatcher, adapter);
 
         // Ping без timestamp (только packetId 0x01).
         byte[] frame = BuildMalformedPingBody();
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 
     // ─── Unexpected packet ids ──────────────────────────────────────
 
     [Fact]
-    public void OnPacket_UnexpectedPacketId_WritesNothing()
+    public void OnPacket_UnexpectedPacketId_ReturnsDisconnect()
     {
         var (dispatcher, adapter) = Create();
         TransitionToStatus(dispatcher, adapter);
 
         // В Status-фазе packetId=0x42 не определён.
         byte[] frame = BuildRawPacketId(0x42);
-        dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
 
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 
     [Fact]
-    public void OnPacket_FrameWithoutPacketId_WritesNothing()
+    public void OnPacket_EmptyFrame_ReturnsDisconnect()
     {
         var (dispatcher, adapter) = Create();
         // Полностью пустой payload — packetId не читается.
-        dispatcher.OnPacket(ReadOnlySequence<byte>.Empty, adapter);
+        PacketVerdict verdict = dispatcher.OnPacket(ReadOnlySequence<byte>.Empty, adapter);
 
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
 

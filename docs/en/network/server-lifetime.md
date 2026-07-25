@@ -15,12 +15,17 @@ Active tasks accumulate in `_sessionTasks` (under a `Lock`). Each one removes it
 ```
 result = await reader.ReadAsync(token)
 scanner = new PacketFrameScanner(result.Buffer)
+drop = false
 while scanner.MoveNext():
-    handler.OnPacket(scanner.Current, writer)   // handler writes into the buffer (sync)
+    if handler.OnPacket(scanner.Current, writer) == Disconnect:   // handler writes into the buffer (sync)
+        drop = true
+        break
 // scanner is a ref struct — read its output into locals BEFORE the await below
 consumed, status = scanner.ConsumedPosition, scanner.Status
 reader.AdvanceTo(consumed, result.Buffer.End)
 await writer.FlushAsync(token)
+if drop or status == Malformed:
+    break    // tear the connection down
 ```
 
 Two subtleties in this loop matter, both easy to get wrong.
@@ -32,5 +37,9 @@ The second is backpressure. `AdvanceTo(consumed, examined)` takes two args delib
 ## Flush point
 
 The handler writes into the `PipeWriter` synchronously and returns; `SessionLifetime` calls `FlushAsync` once per read, after all frames in that read have been dispatched. This keeps the flush point in one place and leaves room for future batching.
+
+## The drop point
+
+The loop exits and tears the connection down in two cases: the handler returned `PacketVerdict.Disconnect` for a specific frame, or the scanner returned `VarInt.ReadStatus.Malformed` (a frame with a broken length prefix). These are two different sources of "garbage," but both branches converge into a single `break`. A handler-requested Disconnect breaks out of the scanner loop and reaches the same check **after** the flush — so a response written by the handler for that frame still goes out before the disconnect. What counts as a "garbage" frame is the handler's call (see [the dispatcher](../minecraft/dispatcher.md)); `SessionLifetime` merely honors the verdict. Pipe cleanup (`CompleteAsync`) is always in `finally`.
 
 → [Packet handler](packet-handler.md)

@@ -17,7 +17,8 @@ src/
 └── Verstack.App/                      ← Program.cs, точка входа. AssemblyName=Verstack
 tests/
 ├── Verstack.Protocol.Tests/           ← xUnit, гоняет Protocol через Span/Sequence
-└── Verstack.Minecraft.Tests/          ← xUnit, гоняет сериализацию Minecraft через IBufferWriter
+├── Verstack.Minecraft.Tests/          ← xUnit, гоняет сериализацию Minecraft через IBufferWriter
+└── Verstack.Network.Tests/            ← xUnit, гоняет read-loop SessionLifetime через пару Pipe (без сокета)
 ```
 
 ## Как идут зависимости
@@ -76,4 +77,4 @@ TCP-сокеты и циклы `PipeReader`/`PipeWriter`, превращающи
 - ✅ Status Response: реальный Minecraft-клиент 1.21.6 при пинге списка серверов видит MOTD, версию и слоты игроков.
 - ⬜ Login — следующая фаза протокола: аутентификация, шифрование, сжатие.
 - ✅ Конкурентность — accept-цикл не блокируется сессией: каждое соединение обслуживается в фоновой задаче, при остановке сервер ждёт хвостовые через `Task.WhenAll`.
-- ⬜ Разрыв соединения на мусорный пакет — сейчас лог + игнор; контракт `void OnPacket` не позволяет handler'у сказать «рви».
+- ✅ Разрыв соединения на мусорный пакет — handler возвращает `PacketVerdict.Disconnect`, SessionLifetime рвёт соединение после flush'а.
