@@ -4,7 +4,7 @@ Protocol — чистая логика работы с байтами, без з
 
 `PacketFrameScanner` — сторона чтения: `ref struct`-enumerator, который выдаёт целые кадры из `ReadOnlySequence<byte>`, одноразовый на `ReadAsync`. `PacketFraming` — сторона записи: `static class`, оборачивающий payload в VarInt-префикс длины и пишущий целый кадр в `IBufferWriter<byte>` одним атомарным куском. Они зеркальны друг другу и делят `DEFAULT_MAX_PACKET_SIZE`, который живёт на `PacketFraming` как единый источник истины.
 
-`PacketReader` — надстройка над фреймингом по сторону чтения: он принимает payload целого кадра и читает поля по очереди — VarInt, big-endian fixed-width числа, length-prefixed UTF-8 строки. Это уровень абстракции, на котором парсеры конкретных пакетов в Minecraft собирают DTO из байт.
+`PacketReader` — надстройка над фреймингом по сторону чтения: он принимает payload целого кадра и читает поля по очереди — VarInt, big-endian fixed-width числа, length-prefixed UTF-8 строки и UUID. UUID возвращается типом `Uuid` (а не `System.Guid`), который определён здесь же и хранит 128 бит строго в wire-порядке. Это уровень абстракции, на котором парсеры конкретных пакетов в Minecraft собирают DTO из байт.
 
 → [VarInt](varint.md)
 → [Фрейминг пакетов](packet-framing.md)

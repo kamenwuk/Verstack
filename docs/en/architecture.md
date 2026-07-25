@@ -13,6 +13,7 @@ src/
 ├── Verstack.Minecraft/                ← Minecraft packet semantics. Depends on Protocol and Network.
 │   ├── Handshake/                     ← Handshake phase: DTO, parser.
 │   ├── Status/                        ← Status phase: DTO, serializer.
+│   ├── Login/                         ← Login phase: DTO, parser (partial).
 │   └── Session/                       ← session infrastructure: phase, dispatcher, factory.
 └── Verstack.App/                      ← Program.cs, entry point. AssemblyName=Verstack
 tests/
@@ -75,6 +76,6 @@ Entry point (`Program.cs`) and composition root: constructs the status data and 
 - ✅ Writes framed outbound packets (`PacketFraming`).
 - ✅ Handshake state machine: parses Handshake, switches phase, dispatches by packet id (Status Request → Status Response, Ping → Pong).
 - ✅ Status Response: a real Minecraft 1.21.6 client pinging the server list sees the MOTD, version, and player slots.
-- ⬜ Login — the next protocol phase: authentication, encryption, compression.
+- 🔨 Login (partial): enters the phase on `nextState = Login`, parses Login Start (name + UUID) and stores it on the connection. Encryption, compression, Login Success, and online mode are not implemented.
 - ✅ Concurrency — the accept loop is not blocked by a session: each connection is serviced in a background task, and on shutdown the server awaits stragglers via `Task.WhenAll`.
 - ✅ Dropping the connection on a garbage packet — the handler returns `PacketVerdict.Disconnect`, and `SessionLifetime` tears the connection down after the flush.

@@ -33,6 +33,6 @@ Fields:
 
 ## Switching the phase
 
-The dispatcher takes the parsed `HandshakePacket` and switches the connection's phase based on `NextState`. How exactly is in [Dispatcher](dispatcher.md). The fact fixed here: `nextState = Status` transitions to the Status phase; `nextState = Login` is not implemented yet and is logged, with the phase remaining Handshake.
+The dispatcher takes the parsed `HandshakePacket` and switches the connection's phase based on `NextState`. How exactly is in [Dispatcher](dispatcher.md). The fact fixed here: `nextState = Status` transitions to the Status phase; `nextState = Login` transitions to the Login phase.
 
 → [Minecraft layer](index.md)

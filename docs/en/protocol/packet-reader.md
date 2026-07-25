@@ -28,6 +28,7 @@ The "cannot cross an `await`" constraint does not bite here: `PacketReader` live
 | Integer (protocol version, id) | VarInt (LEB128) | `TryReadVarInt(out int)` |
 | Port (Handshake) | 2 bytes big-endian | `TryReadUShortBigEndian(out ushort)` |
 | Timestamp (Ping/Pong) | 8 bytes big-endian | `TryReadInt64BigEndian(out long)` |
+| UUID (player in Login/Play) | 16 bytes big-endian, no dashes | `TryReadUuid(out Uuid)` |
 | String (address, player name) | `[VarInt(len)][UTF-8]` | `TryReadString(out string?)` |
 
 Big-endian is the network byte order, and Minecraft follows it for fixed-width fields. The `BigEndian` suffix in the method name states the wire contract explicitly: the reading code can see at a glance which order is expected. VarInt fields carry no endianness — bytes flow in sequence with continuation bits.
@@ -39,6 +40,12 @@ Big-endian reading is built on the signed overloads of `SequenceReader.TryReadBi
 `TryReadString` reads the VarInt length, checks it against the remaining frame, and decodes UTF-8. The string allocation is unavoidable for text, but this is not a hot path: a handshake string is 1–2 fields per connection. The hot path (chunks, entities in Play) carries no length-prefixed strings.
 
 Short bodies decode zero-copy through the contiguous-span branch; a segmented payload (rare) degrades to one allocation for a copy, but stays correct.
+
+## UUID
+
+`TryReadUuid` reads 16 big-endian bytes and returns a `Uuid` — a dedicated type in the Protocol layer, not `System.Guid`. The reason: `Guid` stores its first three fields little-endian (mixed-endian), so `new Guid(byte[16])` produces a Guid whose in-memory layout does not match the wire byte-for-byte. Any code that compares or byte-reads a UUID (and Play does this a lot) would fall into the trap. `Uuid` keeps two `ulong`s strictly in wire order — `Equals`/`==` compare byte-equivalent to the wire, `ToString` produces the canonical dashed lowercase form. No allocations on the hot path: a `stackalloc char[36]` plus one allocation for the final string.
+
+A segmented payload (rare) is copied into a `stackalloc byte[16]` before reading.
 
 ## Failure
 

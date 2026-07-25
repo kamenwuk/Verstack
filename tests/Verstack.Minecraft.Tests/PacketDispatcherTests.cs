@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO.Pipelines;
 using System.Text;
 using Verstack.Minecraft.Handshake;
+using Verstack.Minecraft.Login;
 using Verstack.Minecraft.Session;
 using Verstack.Minecraft.Status;
 using Verstack.Network;
@@ -143,6 +144,54 @@ public class PacketDispatcherTests
         Assert.Equal(PacketVerdict.Disconnect, verdict);
         Assert.Equal(0, adapter.Buffer.WrittenCount);
     }
+    
+    [Fact]
+    public void OnPacket_HandshakeWithLoginNextState_TransitionsToLogin()
+    {
+        var (dispatcher, adapter) = Create();
+        byte[] frame = BuildHandshakeBody(774, "localhost", 25565, nextState: 2);
+
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+
+        // Фаза меняется на Login, ответа пока нет.
+        Assert.Equal(PacketVerdict.Keep, verdict);
+        Assert.Equal(0, adapter.Buffer.WrittenCount);
+
+        // Косвенная проверка фазы: Login Start в этой фазе принимается, а не уходит в default.
+        byte[] loginStart = BuildLoginStartBody("Steve", SampleUuidBytes);
+        verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(loginStart), adapter);
+        Assert.Equal(PacketVerdict.Keep, verdict);
+    }
+
+    [Fact]
+    public void OnPacket_LoginStartBeforeHandshake_ReturnsDisconnect()
+    {
+        // В Handshake-фазе packetId=0x00 трактуется как Handshake, не Login Start.
+        // Тело Login Start не парсится как Handshake → Malformed → рвём соединение.
+        var (dispatcher, adapter) = Create();
+        byte[] frame = BuildLoginStartBody("Steve", SampleUuidBytes);
+
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(frame), adapter);
+
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
+    }
+
+    [Fact]
+    public void OnPacket_MalformedLoginStart_ReturnsDisconnect()
+    {
+        var (dispatcher, adapter) = Create();
+        TransitionToLogin(dispatcher, adapter);
+
+        // Login Start без UUID (только packetId 0x00 + имя "A").
+        using var ms = new MemoryStream();
+        Span<byte> buf = stackalloc byte[VarInt.MAX_SIZE];
+        int n = VarInt.Encode(LoginStartPacketParser.PACKET_ID, buf); ms.Write(buf[..n]);
+        ms.WriteByte(0x01); ms.WriteByte((byte)'A');
+
+        PacketVerdict verdict = dispatcher.OnPacket(new ReadOnlySequence<byte>(ms.ToArray()), adapter);
+
+        Assert.Equal(PacketVerdict.Disconnect, verdict);
+    }
 
     // ─── Helpers ────────────────────────────────────────────────────
 
@@ -215,5 +264,29 @@ public class PacketDispatcherTests
         Span<byte> buf = stackalloc byte[VarInt.MAX_SIZE];
         int n = VarInt.Encode(id, buf);
         return buf[..n].ToArray();
+    }
+    
+    private static readonly byte[] SampleUuidBytes =
+    {
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+    };
+
+    private static void TransitionToLogin(PacketDispatcher dispatcher, PipeWriter writer)
+    {
+        byte[] handshake = BuildHandshakeBody(774, "localhost", 25565, nextState: 2);
+        dispatcher.OnPacket(new ReadOnlySequence<byte>(handshake), writer);
+    }
+
+    private static byte[] BuildLoginStartBody(string username, byte[] uuidBytes)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> buf = stackalloc byte[VarInt.MAX_SIZE];
+        int n = VarInt.Encode(LoginStartPacketParser.PACKET_ID, buf); ms.Write(buf[..n]);
+        byte[] name = Encoding.UTF8.GetBytes(username);
+        n = VarInt.Encode(name.Length, buf); ms.Write(buf[..n]);
+        ms.Write(name);
+        ms.Write(uuidBytes);
+        return ms.ToArray();
     }
 }

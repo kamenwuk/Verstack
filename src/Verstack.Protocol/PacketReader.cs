@@ -118,4 +118,34 @@ public ref struct PacketReader
             ? Encoding.UTF8.GetString(bytes.FirstSpan) : Encoding.UTF8.GetString(bytes.ToArray());
         return true;
     }
+    
+    /// <summary>
+    /// Reads a Minecraft UUID: 16 big-endian bytes, no dashes.
+    /// </summary>
+    /// <remarks>
+    /// Not a <see cref="System.Guid"/>: <see cref="Uuid"/> preserves the wire
+    /// byte order, avoiding <see cref="System.Guid"/>'s mixed-endian trap.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadUuid(out Uuid value)
+    {
+        if (!_reader.TryReadExact(16, out ReadOnlySequence<byte> bytes))
+        {
+            value = default;
+            return false;
+        }
+
+        // Contiguous → zero-copy. Segmented → одна копия в stackalloc (редкий случай).
+        if (bytes.IsSingleSegment)
+        {
+            value = Uuid.Read(bytes.FirstSpan);
+        }
+        else
+        {
+            Span<byte> tmp = stackalloc byte[16];
+            bytes.CopyTo(tmp);
+            value = Uuid.Read(tmp);
+        }
+        return true;
+    }
 }

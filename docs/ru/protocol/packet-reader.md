@@ -28,6 +28,7 @@ reader.TryReadVarInt(out int packetId);   // дальше — поля тела 
 | Целое (версия протокола, id) | VarInt (LEB128) | `TryReadVarInt(out int)` |
 | Порт (Handshake) | 2 байта big-endian | `TryReadUShortBigEndian(out ushort)` |
 | Timestamp (Ping/Pong) | 8 байт big-endian | `TryReadInt64BigEndian(out long)` |
+| UUID (игрок в Login/Play) | 16 байт big-endian, без дефисов | `TryReadUuid(out Uuid)` |
 | Строка (адрес, имя игрока) | `[VarInt(len)][UTF-8]` | `TryReadString(out string?)` |
 
 Big-endian — сетевой порядок байт, и Minecraft следует ему для fixed-width полей. Суффикс `BigEndian` в имени метода фиксирует wire-контракт явно: читающему коду сразу видно, какой порядок ожидается. VarInt-поля endianностью не обладают — байты идут подряд с continuation-битами.
@@ -39,6 +40,12 @@ Big-endian чтение реализовано поверх signed-перегр�
 `TryReadString` читает VarInt-длину, проверяет её против остатка кадра и декодирует UTF-8. Аллокация строки неизбежна для текста, но это не горячий путь: handshake-строка — 1–2 поля на соединение. Горячий путь (чанки, сущности в Play) не содержит length-prefixed строк.
 
 Короткие тела декодируются zero-copy через contiguous-span ветку; сегментированный payload (редкость) деградирует до одной аллокации под копию, но корректно.
+
+## UUID
+
+`TryReadUuid` читает 16 байт big-endian и возвращает `Uuid` — отдельный тип слоя Protocol, а не `System.Guid`. Причина: `Guid` хранит первые три поля little-endian (mixed-endian), поэтому `new Guid(byte[16])` даёт Guid, чьё внутреннее представление не совпадает с проводом побайтово. Любой код, который сравнивает или побайтово читает UUID (а в Play этого много), попал бы в ловушку. `Uuid` хранит два `ulong` строго в wire-порядке — `Equals`/`==` сравнивают побайтово эквивалентно проводу, `ToString` даёт канонический dashed-вид с нижним регистром. Hot path без аллокаций: `stackalloc char[36]` и одна аллокация финальной строки.
+
+Сегментированный payload (редкость) копируется в `stackalloc byte[16]` перед чтением.
 
 ## Отказ
 

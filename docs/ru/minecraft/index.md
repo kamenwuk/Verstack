@@ -2,7 +2,7 @@
 
 Minecraft — слой, где байты становятся Minecraft. Здесь живут DTO пакетов, их сериализаторы и парсеры, а также диспетчер, маршрутизирующий кадры по фазам протокола. Слой организован по фазам протокола, потому что wire-формат Minecraft зависит от текущей фазы: packet id `0x00` в Handshake, Status, Login и Play значит разное, и их DTO не должны конфликтовать.
 
-Сейчас реализованы фазы Handshake и Status; Login и Play последуют в том же устройстве, когда появятся.
+Сейчас реализованы фазы Handshake и Status полностью; фаза Login — частично (вход в фазу и разбор Login Start, без обмена шифрованием/сжатием и Login Success). Play последует.
 
 Где этот слой в графе зависимостей — см. [Архитектуру](../architecture.md).
 
@@ -12,6 +12,7 @@ Minecraft — слой, где байты становятся Minecraft. Зде
 Verstack.Minecraft/
 ├── Handshake/              ← фаза Handshake (DTO, парсер)
 ├── Status/                 ← фаза Status (DTO, сериализатор)
+├── Login/                  ← фаза Login (DTO, парсер — частично)
 └── Session/                ← инфраструктура сессии (фаза, диспетчер, фабрика)
 ```
 
@@ -29,4 +30,5 @@ Verstack.Minecraft/
 
 → [Handshake](handshake.md)
 → [Status](status.md)
+→ [Login](login.md)
 → [Диспетчер](dispatcher.md)

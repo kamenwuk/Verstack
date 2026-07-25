@@ -33,6 +33,6 @@ Handshake (клиент → сервер):  [0x00][VarInt(protoVersion)][VarInt(
 
 ## Переключение фазы
 
-Диспетчер получает разобранный `HandshakePacket` и по `NextState` переключает фазу соединения. Как именно — в [Диспетчере](dispatcher.md). Здесь зафиксирован только факт: `nextState = Status` переводит в фазу Status, `nextState = Login` пока не реализован и логируется, а фаза остаётся Handshake.
+Диспетчер получает разобранный `HandshakePacket` и по `NextState` переключает фазу соединения. Как именно — в [Диспетчере](dispatcher.md). Здесь зафиксирован только факт: `nextState = Status` переводит в фазу Status, `nextState = Login` переводит в фазу Login.
 
 → [Слой Minecraft](index.md)

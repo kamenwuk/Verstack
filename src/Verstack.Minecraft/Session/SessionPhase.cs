@@ -18,4 +18,8 @@ public enum SessionPhase
 
     /// <summary>Status phase: server-list ping (Status Request/Response, Ping/Pong).</summary>
     Status,
+    
+    /// <summary>Login phase: client sent Login Start; server will negotiate
+    /// encryption, compression, then send Login Success.</summary>
+    Login,
 }

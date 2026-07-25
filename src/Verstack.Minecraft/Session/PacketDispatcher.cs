@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Pipelines;
 using Verstack.Minecraft.Handshake;
+using Verstack.Minecraft.Login;
 using Verstack.Minecraft.Status;
 using Verstack.Network;
 using Verstack.Protocol;
@@ -30,7 +31,12 @@ public sealed class PacketDispatcher : IPacketHandler
 
     private readonly ServerStatusResponse _status;
     private readonly ArrayBufferWriter<byte> _scratch = new();
-    private SessionPhase _phase; // default(Handshake) — стартовая фаза
+    private SessionPhase _phase = SessionPhase.Handshake; // default(Handshake) — стартовая фаза
+
+    // Данные Login Start, сохраняются до Login Success (подэтап 4).
+    // До первого Login Start — null / нулевой UUID: игрок не залогинен.
+    private string? _loginUsername;
+    private Uuid _loginUuid;
 
     /// <param name="status">Server status data, sent on every Status Request.</param>
     public PacketDispatcher(ServerStatusResponse status)
@@ -62,6 +68,9 @@ public sealed class PacketDispatcher : IPacketHandler
             case (SessionPhase.Status, PONG_PACKET_ID):
                 return HandlePing(ref reader, output);
 
+            case (SessionPhase.Login, LoginStartPacketParser.PACKET_ID):
+                return HandleLoginStart(ref reader); 
+            
             default:
                 Console.WriteLine(
                     $"[{nameof(PacketDispatcher)}] Unexpected packet id 0x{packetId:X2} " +
@@ -88,8 +97,7 @@ public sealed class PacketDispatcher : IPacketHandler
                 return PacketVerdict.Keep;
 
             case HandshakeNextState.Login:
-                Console.WriteLine(
-                    $"[{nameof(PacketDispatcher)}] Login phase not implemented — staying in {nameof(SessionPhase.Handshake)}.");
+                _phase = SessionPhase.Login;
                 return PacketVerdict.Keep;
         }
 
@@ -102,7 +110,7 @@ public sealed class PacketDispatcher : IPacketHandler
         ServerStatusSerializer.Write(_scratch, in _status);
         PacketFraming.Write(output, _scratch.WrittenSpan);
     }
-
+    
     private PacketVerdict HandlePing(ref PacketReader reader, PipeWriter output)
     {
         if (!reader.TryReadInt64BigEndian(out long timestamp))
@@ -121,4 +129,19 @@ public sealed class PacketDispatcher : IPacketHandler
         PacketFraming.Write(output, _scratch.WrittenSpan);
         return PacketVerdict.Keep;
     }
+    
+    private PacketVerdict HandleLoginStart(ref PacketReader reader)
+    {
+        if (!LoginStartPacketParser.TryParse(ref reader, out LoginStartPacket packet))
+        {
+            Console.WriteLine($"[{nameof(PacketDispatcher)}] Malformed Login Start — dropping connection.");
+            return PacketVerdict.Disconnect;
+        }
+
+        _loginUsername = packet.Username;
+        _loginUuid = packet.Uuid;
+        Console.WriteLine($"[{nameof(PacketDispatcher)}] Login Start: '{packet.Username}' ({packet.Uuid}). " +
+                          $"Login exchange not implemented — connection will stall.");
+        return PacketVerdict.Keep;
+    }  
 }

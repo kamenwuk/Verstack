@@ -2,7 +2,7 @@
 
 Minecraft is where bytes become Minecraft. Packet DTOs, their serializers and parsers, plus the dispatcher that routes frames by protocol phase, live here. The layer is organized by protocol phase, because Minecraft's wire format depends on the current phase: packet id `0x00` means different things in Handshake, Status, Login, and Play, and their DTOs must not collide.
 
-Today the Handshake and Status phases are implemented; Login and Play will follow the same layout as they land.
+Today the Handshake and Status phases are fully implemented; the Login phase is partial (entry into the phase and Login Start parsing, without the encryption/compression exchange and Login Success). Play will follow.
 
 For where this layer sits in the dependency graph, see [Architecture](../architecture.md).
 
@@ -12,6 +12,7 @@ For where this layer sits in the dependency graph, see [Architecture](../archite
 Verstack.Minecraft/
 ├── Handshake/              ← the Handshake phase (DTO, parser)
 ├── Status/                 ← the Status phase (DTO, serializer)
+├── Login/                  ← the Login phase (DTO, parser — partial)
 └── Session/                ← session infrastructure (phase, dispatcher, factory)
 ```
 
@@ -29,4 +30,5 @@ Not every packet has both sides: the client's Status Request is empty — it has
 
 → [Handshake](handshake.md)
 → [Status](status.md)
+→ [Login](login.md)
 → [Dispatcher](dispatcher.md)
