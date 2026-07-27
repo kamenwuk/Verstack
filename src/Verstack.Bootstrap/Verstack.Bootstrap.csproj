@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Verstack.Debug\Verstack.Debug.csproj" />
+      <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
+      <ProjectReference Include="..\Verstack.Layer.Gateway\Verstack.Layer.Gateway.csproj" />
+      <ProjectReference Include="..\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
+      <ProjectReference Include="..\Verstack.Layer.Realm\Verstack.Layer.Realm.csproj" />
+      <ProjectReference Include="..\Verstack.NBT\Verstack.NBT.csproj" />
+      <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+    </ItemGroup>
+
+</Project>

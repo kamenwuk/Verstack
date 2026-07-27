@@ -7,9 +7,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Verstack.Minecraft\Verstack.Minecraft.csproj" />
+        <ProjectReference Include="..\Verstack.Bootstrap\Verstack.Bootstrap.csproj" />
+        <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
         <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj"/>
-        <ProjectReference Include="..\Verstack.Protocol\Verstack.Protocol.csproj"/>
     </ItemGroup>
 
 </Project>

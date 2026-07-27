@@ -1,6 +1,6 @@
 # Architecture
 
-Map of the Verstack codebase: which projects exist, what each owns, and which way dependencies may point. Implementation details of any layer live in their deep-dive pages.
+Map of the Verstack codebase: which projects exist, what each owns, and which way dependencies point. Implementation details of any layer live in their deep-dive pages.
 
 ## Solution layout
 
@@ -8,74 +8,130 @@ Map of the Verstack codebase: which projects exist, what each owns, and which wa
 Verstack.slnx                          ← .NET 10 XML solution format
 Directory.Build.props                  ← shared settings for all projects
 src/
-├── Verstack.Network/                  ← TCP/sockets + PipeReader loop. Depends on Protocol.
-├── Verstack.Protocol/                 ← VarInt, framing, field reading. Pure logic, 0 NuGet deps.
-├── Verstack.Minecraft/                ← Minecraft packet semantics. Depends on Protocol and Network.
-│   ├── Handshake/                     ← Handshake phase: DTO, parser.
-│   ├── Status/                        ← Status phase: DTO, serializer.
-│   ├── Login/                         ← Login phase: DTO, parser (partial).
-│   └── Session/                       ← session infrastructure: phase, dispatcher, factory.
-└── Verstack.App/                      ← Program.cs, entry point. AssemblyName=Verstack
-tests/
-├── Verstack.Protocol.Tests/           ← xUnit, exercises Protocol via Span/Sequence
-├── Verstack.Minecraft.Tests/          ← xUnit, exercises Minecraft serialization via IBufferWriter
-└── Verstack.Network.Tests/            ← xUnit, exercises SessionLifetime's read loop via a pair of Pipes (no socket)
+├── Verstack.App/                      ← Program.cs, entry point. AssemblyName=Verstack
+├── Verstack.Bootstrap/                ← composition: ServerComposer + EntryPoint (main tick loop)
+├── Verstack.Core/                     ← base abstractions: VerstackFeature, WorldScopes, ServerTime
+├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n dictionary)
+├── Verstack.ECS/                      ← vendored Leopotam.EcsProto + QoL. 0 NuGet
+├── Verstack.NBT/                      ← NBT (planned, empty for now)
+├── Verstack.Network/                  ← TCP/sockets + framing. Passive byte pump
+├── Verstack.Layer.Global/             ← GLOBAL world: MOTD, ServerInfo, constants
+├── Verstack.Layer.Gateway/            ← GATEWAY world: Handshake, Status, Login, Configuration
+└── Verstack.Layer.Realm/              ← REALM world: Play phase (planned, empty for now)
+tools/
+└── Verstack.Probe/                    ← load-testing N-client simulator
 ```
 
 ## How dependencies run
 
 ```
-App  ──►  Network  ──►  Protocol  ──►  (BCL only)
- │          ▲
- │          │ Minecraft implements IPacketHandler
- └────►  Minecraft  ──►  Protocol  ──►  (BCL only)
+                    App
+                     │
+                     ▼
+                  Bootstrap
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+   Layer.Realm   Network      Layer.Global
+        │            │            │
+        ▼            ▼            ▼
+   Layer.Gateway  Verstack.ECS  Verstack.Core
+        │            │            │
+        ▼            ▼            ▼
+   Layer.Global  (BCL only)    Verstack.Debug
+        │                       (BCL only)
+        ▼
+   Layer.Global → Core → Debug
 ```
 
-The dependency is linear, not symmetric: Minecraft references Network, never the other way around. This is Dependency Inversion — Network owns the `IPacketHandler` contract ("how I hand a parsed frame to the layer above") and the `IPacketHandlerFactory` contract ("how I get a handler for each connection"), and Minecraft provides implementations of both. The layering rule here is *know less, not more*: Network still knows nothing about Minecraft packets.
+Dependencies are linear and point downward, toward the foundation. `App` is the composition root and the only executable assembly. `Bootstrap` assembles three ECS worlds out of Features and services and runs the main tick. `Layer.Realm → Layer.Gateway → Layer.Global → Core` is the layer pyramid: an upper layer knows the lower ones, never the reverse.
 
-All arrows point downward, toward Protocol / BCL. Protocol is the foundation everyone builds on, and it references only the base class library.
+`Verstack.ECS` and `Verstack.Debug` are leaves: `ECS` depends only on BCL, `Debug` too. `Verstack.NBT` is empty for now and has no dependencies. `Verstack.Network` depends on `ECS` (the `RawPacket`/`PacketBundle` types use `ProtoEntity`) and `Debug` (logging).
 
-| Layer       | May reference                                             | May NOT reference            |
-|-------------|-----------------------------------------------------------|------------------------------|
-| `App`       | Network, Minecraft, Protocol                              | — (composition root)         |
-| `Network`   | Protocol, the `IPacketHandler`/`IPacketHandlerFactory` contracts | Minecraft packet specifics   |
-| `Minecraft` | Network (`IPacketHandler`/`IPacketHandlerFactory`), Protocol | — (upper layer)              |
-| `Protocol`  | BCL only (`System.Buffers`)                               | Sockets, Network, Minecraft  |
+| Layer             | May reference                                        | May NOT reference                           |
+|-------------------|------------------------------------------------------|---------------------------------------------|
+| `App`             | Bootstrap, ECS, Network                              | — (composition root)                        |
+| `Bootstrap`       | Debug, ECS, NBT, Network, Core, Layer.Global/Gateway/Realm | — (assembly point)                          |
+| `Layer.Realm`     | ECS, Core, Layer.Gateway                             | Network (directly), Layer.Global (transitively via Gateway) |
+| `Layer.Gateway`   | ECS, Core, Layer.Global, Network                     | Layer.Realm                                 |
+| `Layer.Global`    | ECS, Core                                            | Network, Layer.Gateway, Layer.Realm         |
+| `Network`         | Debug, ECS                                           | layers, Core, Minecraft phases              |
+| `Core`            | Debug, ECS                                           | layers, Network                             |
+| `ECS` / `Debug` / `NBT` | BCL only                                       | anything application-level                  |
 
-- **Protocol never references Network or Minecraft.** Tested in isolation via `Span<byte>` / `ReadOnlySequence<byte>`, no socket.
-- **Network never references Minecraft.** The only path from Minecraft into Network's world is the `IPacketHandler`/`IPacketHandlerFactory` implementation that App plugs in.
+- **Layers never touch sockets directly.** The only path bytes take to the network is through a `NetworkChannel`, which a layer receives from `TcpNetworkService` and writes its response into. Network knows nothing about Minecraft phases.
+- **ECS is the foundation under the layers.** Vendored `Leopotam.EcsProto` (+QoL) lives in `Verstack.ECS`; every layer and Network depend on it. It is not thread-safe — synchronization is done by ECS systems (see the network decoupling below).
+
+## ECS worlds and their visibility
+
+Three isolated ECS worlds, one per logical scope. Names are constants in `WorldScopes`:
+
+| Scope (`WorldScopes.*`) | Role                                                       | Sees other worlds            |
+|------------------------|------------------------------------------------------------|------------------------------|
+| `GLOBAL`               | Server-wide data: MOTD, ServerInfo, time                   | — (visible to everyone else) |
+| `GATEWAY`              | Entry: Handshake, Status, Login, Configuration             | `GLOBAL`                     |
+| `REALM`                | Game world: Play phase (planned)                           | `GLOBAL`, `GATEWAY`          |
+
+Worlds are assembled in `ServerComposer`: each Feature (`GlobalFeature`, `GatewayFeature`, `RealmFeature`) registers its aspects (`ProtoAspectInject` stores) and systems. Services (`TcpNetworkService`, `ServerTime`) are added via `AddService` and injected with `[DI]` into every world. `AutoInjectModule(true)` enables injection into services too.
+
+## The main tick
+
+`EntryPoint.RunMainLoop` runs a fixed 20 TPS loop (`ServerConstants.TICK_INTERVAL = 1/20`):
+
+```
+while (_isRunning):
+    try:
+        globalSystems.Run()       # always: MOTD, time, metrics
+        gatewaySystems.Run()      # can be paused (DDoS backpressure)
+        # realmSystems.Run()      # always: Play phase, players don't notice the attack
+    catch Exception:              # a tick must not crash the server — log and carry on
+        Logger.Error(...)
+
+    serverTime.Update()
+    sleep until next tick (with instant wakeup on the stop signal)
+```
+
+The key idea of backpressure: under a DDoS attack on Gateway (`gatewaySystems.Run()` is skipped), the sockets in `TcpNetworkService` keep accepting packets and queueing them in the per-channel `ConcurrentQueue<RawPacket>`. When the pause lifts, the packets are drained. Realm keeps ticking the whole time, so in-game players don't notice the attack. EcsProto is not thread-safe, so the accept thread in `TcpNetworkService` **never touches** the world — it only pushes a `RawPacket` into a queue; the sole writer of the world is an ECS system in the main tick.
 
 ## The layers
 
 ### Verstack.Network
 
-TCP sockets and the `PipeReader`/`PipeWriter` loops that turn a raw byte stream into framed Minecraft payloads and back. Built on `Pipelines.Sockets.Unofficial` (raw sockets + pipe, by Marc Gravell). Owns `TcpServer`, `SessionLifetime`, and the `IPacketHandler`/`IPacketHandlerFactory` contracts.
+Passive byte pump. `TcpNetworkService` owns the listening socket and the accept loop: for each connection it creates a `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), pushes it into `PendingConnections`, and starts a background read. The read splits the byte stream into `RawPacket`s (packet id + payload) and enqueues them — with no Minecraft semantics whatsoever. `DataTypes/` holds encoding primitives (VarInt, Numeric, Utf8String, etc.), `Packet/` holds the pipeline skeleton (`RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`).
 
 → [Network](network/index.md)
 
-### Verstack.Protocol
+### Verstack.Layer.Global
 
-Pure logic, no NuGet dependencies. Everything here works on `Span<byte>` and `ReadOnlySequence<byte>`. Provides `VarInt` (LEB128 integers), the framing pair — `PacketFrameScanner` reads frames out of a sequence, `PacketFraming` writes them into a buffer — and `PacketReader`, which reads the fields of one packet from a complete frame's payload.
+The GLOBAL world. `ServerInfoCacheStore` is an aspect with a dirty flag: MOTD/version/slots live as fields, and the status JSON is rebuilt only on change and cached as a `byte[]`. On a server-list ping — zero allocations, a ready array is returned. `UpdateServerInfoSystem` checks the dirty flag and rebuilds the cache once a second. `ServerTime` provides DeltaTime/TotalTime via `Stopwatch.GetTimestamp`, with no drift.
 
-→ [Protocol](protocol/index.md)
+→ [Global](global/index.md)
 
-### Verstack.Minecraft
+### Verstack.Layer.Gateway
 
-Where bytes become Minecraft. Packet DTOs, their serializers and parsers, organized by protocol phase (`Handshake`, `Status` today; `Login` and `Play` to come), plus the dispatcher that routes frames by `(phase, packet id)`. References Network only to implement `IPacketHandler`/`IPacketHandlerFactory`.
+The GATEWAY world, the entry layer. `GuestScreeningSystem` takes new channels from `PendingConnections`, parses Handshake, and routes them: Status (ping/MOTD is served right here, no ECS entity) or Login (an ECS entity is created with `NetworkSession` + `PacketFlowState`). `PacketDispatchSystem` runs packets of logged-in sessions through `GatewayPacketPipeline` — a conveyor of `PacketBundle`s, where each bundle is a phase (Login, Configuration). `GatewayCacheStore` is an aspect: `Sessions`/`FlowStates` pools plus entity↔channel side-dictionaries.
 
-→ [Minecraft](minecraft/index.md)
+→ [Gateway](gateway/index.md)
 
-### Verstack.App
+### Verstack.Layer.Realm
 
-Entry point (`Program.cs`) and composition root: constructs the status data and a `PacketDispatcherFactory` (Minecraft), hands it to a `TcpServer` (Network), and runs the server until Ctrl+C.
+The REALM world, the Play phase. Reserved; `RealmFeature` is empty for now: `Init` with no systems, `GetCacheStores()` → `[]`. It will run at 20 TPS regardless of the load on Gateway.
+
+### Verstack.Bootstrap
+
+Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s out of their aspects (via `ProtoModules` + `AutoInjectModule`), registers services, and wires worlds by visibility. `EntryPoint` is the lifecycle: `Start(port)` initializes services and worlds, starts the TCP listener and the main tick; `Stop()` wakes the tick via a `CancellationToken`, stops the network, and destroys the worlds.
+
+### Verstack.Core / Debug / ECS / NBT
+
+`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the Leopotam vendor. `NBT` — planned.
 
 ## Current status
 
-- ✅ TCP listener on 25565, accepts connections.
-- ✅ Reads and frames incoming packets (`PacketFrameScanner`).
-- ✅ Writes framed outbound packets (`PacketFraming`).
-- ✅ Handshake state machine: parses Handshake, switches phase, dispatches by packet id (Status Request → Status Response, Ping → Pong).
-- ✅ Status Response: a real Minecraft 1.21.6 client pinging the server list sees the MOTD, version, and player slots.
-- 🔨 Login (partial): enters the phase on `nextState = Login`, parses Login Start (name + UUID) and stores it on the connection. Encryption, compression, Login Success, and online mode are not implemented.
-- ✅ Concurrency — the accept loop is not blocked by a session: each connection is serviced in a background task, and on shutdown the server awaits stragglers via `Task.WhenAll`.
-- ✅ Dropping the connection on a garbage packet — the handler returns `PacketVerdict.Disconnect`, and `SessionLifetime` tears the connection down after the flush.
+- ✅ ECS core: vendored Leopotam.EcsProto + QoL, three worlds (Global/Gateway/Realm), `AutoInjectModule`/`[DI]`.
+- ✅ Main tick at 20 TPS with try/catch and instant stop on signal.
+- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, `RawPacket` framing. Passive, thread/ECS decoupled.
+- ✅ Gateway/Global: server-list ping answers with MOTD/version/slots via the GLOBAL cache at zero allocations.
+- ✅ Handshake: parsing, populating `NetworkSession` with data (protocolVersion, IP, serverAddress, serverPort).
+- 🔨 Login/Configuration: the `PacketBundle`/`PacketPipeline` skeleton is in place, but bundles are not written — packets from a logged-in player currently lead to a kick.
+- 🔨 Realm: the Play phase is not implemented, the layer is empty.
+- ⏳ Send side: the synchronous `FlushAsync().GetAwaiter().GetResult()` in ECS systems is a backpressure bottleneck — a move to a send queue is planned.

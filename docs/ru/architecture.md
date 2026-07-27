@@ -1,6 +1,6 @@
 # Архитектура
 
-Карта кодовой базы Verstack: какие проекты есть, чем владеет каждый и в какую сторону могут идти зависимости. Детали реализации каждого слоя — на отдельных страницах.
+Карта кодовой базы Verstack: какие проекты есть, чем владеет каждый и в какую сторону идут зависимости. Детали реализации каждого слоя — на отдельных страницах.
 
 ## Структура решения
 
@@ -8,74 +8,130 @@
 Verstack.slnx                          ← XML-формат решения .NET 10
 Directory.Build.props                  ← общие настройки всех проектов
 src/
-├── Verstack.Network/                  ← TCP/сокеты + цикл PipeReader. Зависит от Protocol.
-├── Verstack.Protocol/                 ← VarInt, фрейминг, чтение полей. Чистая логика, 0 NuGet-зависимостей.
-├── Verstack.Minecraft/                ← семантика пакетов Minecraft. Зависит от Protocol и Network.
-│   ├── Handshake/                     ← фаза Handshake: DTO, парсер.
-│   ├── Status/                        ← фаза Status: DTO, сериализатор.
-│   ├── Login/                         ← фаза Login: DTO, парсер (частично).
-│   └── Session/                       ← инфраструктура сессии: фаза, диспетчер, фабрика.
-└── Verstack.App/                      ← Program.cs, точка входа. AssemblyName=Verstack
-tests/
-├── Verstack.Protocol.Tests/           ← xUnit, гоняет Protocol через Span/Sequence
-├── Verstack.Minecraft.Tests/          ← xUnit, гоняет сериализацию Minecraft через IBufferWriter
-└── Verstack.Network.Tests/            ← xUnit, гоняет read-loop SessionLifetime через пару Pipe (без сокета)
+├── Verstack.App/                      ← Program.cs, точка входа. AssemblyName=Verstack
+├── Verstack.Bootstrap/                ← композиция: ServerComposer + EntryPoint (главный тик-луп)
+├── Verstack.Core/                     ← базовые абстракции: VerstackFeature, WorldScopes, ServerTime
+├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n-словарь)
+├── Verstack.ECS/                      ← завендоренный Leopotam.EcsProto + QoL. 0 NuGet
+├── Verstack.NBT/                      ← NBT (запланирован, пока пуст)
+├── Verstack.Network/                  ← TCP/сокеты + фрейминг. Пассивный насос байт
+├── Verstack.Layer.Global/             ← GLOBAL-мир: MOTD, ServerInfo, константы
+├── Verstack.Layer.Gateway/            ← GATEWAY-мир: Handshake, Status, Login, Configuration
+└── Verstack.Layer.Realm/              ← REALM-мир: фаза Play (запланирован, пока пуст)
+tools/
+└── Verstack.Probe/                    ← нагрузочный имитатор N клиентов
 ```
 
 ## Как идут зависимости
 
 ```
-App  ──►  Network  ──►  Protocol  ──►  (только BCL)
- │          ▲
- │          │ Minecraft реализует IPacketHandler
- └────►  Minecraft  ──►  Protocol  ──►  (только BCL)
+                    App
+                     │
+                     ▼
+                  Bootstrap
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+   Layer.Realm   Network      Layer.Global
+        │            │            │
+        ▼            ▼            ▼
+   Layer.Gateway  Verstack.ECS  Verstack.Core
+        │            │            │
+        ▼            ▼            ▼
+   Layer.Global  (BCL only)    Verstack.Debug
+        │                       (BCL only)
+        ▼
+   Layer.Global → Core → Debug
 ```
 
-Зависимость линейная, не симметричная: Minecraft ссылается на Network, никогда наоборот. Это Dependency Inversion — Network владеет контрактами `IPacketHandler` («как мне передать разобранный кадр в вышележащий слой») и `IPacketHandlerFactory` («как мне добыть handler на каждое соединение»), а Minecraft даёт их реализации. Правило слоистости здесь — *знай меньше, а не больше*: Network по-прежнему ничего не знает о пакетах Minecraft.
+Зависимости линейные, направлены вниз — к фундаменту. `App` — корень композиции, единственная исполняемая сборка. `Bootstrap` собирает из Feature-ов три ECS-мира и сервисы, крутит главный тик. `Layer.Realm → Layer.Gateway → Layer.Global → Core` — пирамида слоёв: верхний слой знает нижние, но не наоборот.
 
-Все стрелки идут вниз, в сторону Protocol / BCL. Protocol — фундамент, на котором все стоят, и ссылается он только на базовую библиотеку классов.
+`Verstack.ECS` и `Verstack.Debug` — листья: `ECS` зависит только от BCL, `Debug` — тоже. `Verstack.NBT` пока пуст, зависимости не имеет. `Verstack.Network` зависит от `ECS` (типы `RawPacket`/`PacketBundle` используют `ProtoEntity`) и `Debug` (логирование).
 
-| Слой        | Может ссылаться на                                | НЕ может ссылаться на        |
-|-------------|---------------------------------------------------|------------------------------|
-| `App`       | Network, Minecraft, Protocol                      | — (корень композиции)        |
-| `Network`   | Protocol, контракты `IPacketHandler`/`IPacketHandlerFactory` | специфику пакетов Minecraft  |
-| `Minecraft` | Network (`IPacketHandler`/`IPacketHandlerFactory`), Protocol | — (верхний слой)             |
-| `Protocol`  | только BCL (`System.Buffers`)                     | сокеты, Network, Minecraft   |
+| Слой             | Может ссылаться на                                  | НЕ может ссылаться на                       |
+|------------------|-----------------------------------------------------|---------------------------------------------|
+| `App`            | Bootstrap, ECS, Network                             | — (корень композиции)                       |
+| `Bootstrap`      | Debug, ECS, NBT, Network, Core, Layer.Global/Gateway/Realm | — (точка сборки)                            |
+| `Layer.Realm`    | ECS, Core, Layer.Gateway                            | Network (напрямую), Layer.Global (транзитивно через Gateway) |
+| `Layer.Gateway`  | ECS, Core, Layer.Global, Network                    | Layer.Realm                                 |
+| `Layer.Global`   | ECS, Core                                           | Network, Layer.Gateway, Layer.Realm         |
+| `Network`        | Debug, ECS                                          | слои, Core, Minecraft-фазы                  |
+| `Core`           | Debug, ECS                                          | слои, Network                               |
+| `ECS` / `Debug` / `NBT` | только BCL                                   | всё прикладное                              |
 
-- **Protocol никогда не ссылается на Network или Minecraft.** Тестируется изолированно через `Span<byte>` / `ReadOnlySequence<byte>`, без сокета.
-- **Network никогда не ссылается на Minecraft.** Единственный путь из Minecraft в мир Network — реализации `IPacketHandler` и `IPacketHandlerFactory`, которые App подсовывает Network'у.
+- **Слои не лезут в сокеты напрямую.** Единственный путь байта в сеть — через `NetworkChannel`, который слой получает от `TcpNetworkService` и в который пишет ответ. Network не знает про Minecraft-фазы.
+- **ECS — фундамент под слоями.** Завендоренный `Leopotam.EcsProto` (+QoL) лежит в `Verstack.ECS`, от него зависят все слои и Network. Не потокобезопасен — синхронизация делается ECS-системами (см. ниже развязку с сетью).
+
+## ECS-миры и их видимость
+
+Три изолированных ECS-мира, по одному на логический скоуп. Имена — константы в `WorldScopes`:
+
+| Скоуп (`WorldScopes.*`) | Роль                                                    | Видит другие миры            |
+|------------------------|---------------------------------------------------------|------------------------------|
+| `GLOBAL`               | Данные, общие для всего сервера: MOTD, ServerInfo, время | — (виден всем остальным)     |
+| `GATEWAY`              | Вход: Handshake, Status, Login, Configuration           | `GLOBAL`                     |
+| `REALM`                | Игровой мир: фаза Play (запланирован)                   | `GLOBAL`, `GATEWAY`          |
+
+Сборка миров — в `ServerComposer`: каждый Feature (`GlobalFeature`, `GatewayFeature`, `RealmFeature`) регистрирует свои аспекты (`ProtoAspectInject`-сторы) и системы. Сервисы (`TcpNetworkService`, `ServerTime`) добавляются через `AddService` и инжектятся `[DI]` во все миры. `AutoInjectModule(true)` включает инъекцию и в сервисы.
+
+## Главный тик
+
+`EntryPoint.RunMainLoop` крутит фиксированный цикл 20 TPS (`ServerConstants.TICK_INTERVAL = 1/20`):
+
+```
+while (_isRunning):
+    try:
+        globalSystems.Run()       # всегда: MOTD, время, метрики
+        gatewaySystems.Run()      # можно поставить на паузу (DDoS-backpressure)
+        # realmSystems.Run()      # всегда: фаза Play, игроки не замечают атаку
+    catch Exception:              # тик не должен ронять сервер — лог и дальше
+        Logger.Error(...)
+
+    serverTime.Update()
+    sleep до следующего тика (с мгновенным пробуждением по сигналу остановки)
+```
+
+Ключевая идея backpressure'а: при DDoS-атаке на Gateway (`gatewaySystems.Run()` пропускается), сокеты в `TcpNetworkService` продолжают принимать пакеты и складывают их в `ConcurrentQueue<RawPacket>` на каналах. Когда пауза снимается — пакеты вычитываются. Realm при этом тикает без остановки, игроки в игре атаки не замечают. EcsProto не потокобезопасен, поэтому accept-поток в `TcpNetworkService` **не трогает** мир — он только кладёт `RawPacket` в очередь; единственный писатель мира — ECS-система в главном тике.
 
 ## Слои
 
 ### Verstack.Network
 
-TCP-сокеты и циклы `PipeReader`/`PipeWriter`, превращающие сырой поток байт в обрамлённые payload'ы Minecraft и обратно. Построен на `Pipelines.Sockets.Unofficial` (raw-сокеты + pipe, Marc Gravell). Владеет `TcpServer`, `SessionLifetime` и контрактами `IPacketHandler`/`IPacketHandlerFactory`.
+Пассивный насос байт. `TcpNetworkService` владеет слушающим сокетом и accept-циклом: для каждого соединения создаёт `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), кидает его в `PendingConnections` и запускает фоновое чтение. Чтение режет поток байт на `RawPacket` (packet id + payload) и складывает в очередь канала — без какой-либо семантики Minecraft. `DataTypes/` содержит примитивы кодирования (VarInt, Numeric, Utf8String и т.д.), `Packet/` — каркас конвейера (`RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`).
 
 → [Network](network/index.md)
 
-### Verstack.Protocol
+### Verstack.Layer.Global
 
-Чистая логика, без NuGet-зависимостей. Всё здесь работает с `Span<byte>` и `ReadOnlySequence<byte>`. Предоставляет `VarInt` (целые LEB128), пару фрейминга — `PacketFrameScanner` читает кадры из sequence, `PacketFraming` пишет их в буфер, — и `PacketReader`, читающий поля одного пакета из payload целого кадра.
+GLOBAL-мир. `ServerInfoCacheStore` — аспект с dirty-flag: MOTD/версия/слоты хранятся как поля, JSON статуса пересобирается только при изменении и кэшируется в `byte[]`. На пинге сервер-листа — нулевые аллокации, отдаётся готовый массив. `UpdateServerInfoSystem` раз в секунду проверяет dirty и пересобирает кэш. `ServerTime` — DeltaTime/TotalTime через `Stopwatch.GetTimestamp`, без дрейфа.
 
-→ [Protocol](protocol/index.md)
+→ [Global](global/index.md)
 
-### Verstack.Minecraft
+### Verstack.Layer.Gateway
 
-Слой, где байты становятся Minecraft. DTO пакетов, их сериализаторы и парсеры, организованные по фазам протокола (`Handshake`, `Status`; дальше `Login` и `Play`), а также диспетчер, маршрутизирующий кадры по `(фаза, packet id)`. Ссылается на Network только ради реализации `IPacketHandler`/`IPacketHandlerFactory`.
+GATEWAY-мир, входной слой. `GuestScreeningSystem` принимает новые каналы из `PendingConnections`, парсит Handshake и разводит: Status (пинг/MOTD обслуживает тут же, без ECS-сущности) или Login (создаёт ECS-сущность с `NetworkSession` + `PacketFlowState`). `PacketDispatchSystem` гоняет пакеты залогиненных сессий через `GatewayPacketPipeline` — конвейер из `PacketBundle`'ов, где каждый бандл — фаза (Login, Configuration). `GatewayCacheStore` — аспект: пулы `Sessions`/`FlowStates` + side-словари entity↔channel.
 
-→ [Minecraft](minecraft/index.md)
+→ [Gateway](gateway/index.md)
 
-### Verstack.App
+### Verstack.Layer.Realm
 
-Точка входа (`Program.cs`) и корень композиции: конструирует данные статуса и `PacketDispatcherFactory` (Minecraft), передаёт её в `TcpServer` (Network) и крутит сервер до Ctrl+C.
+REALM-мир, фаза Play. Зарезервирован, `RealmFeature` пока пуст: `Init` без систем, `GetCacheStores()` → `[]`. Будет играть на 20 TPS независимо от нагрузки на Gateway.
+
+### Verstack.Bootstrap
+
+Композиция. `ServerComposer` принимает три Feature'а, собирает из их аспектов три `ProtoWorld` (через `ProtoModules` + `AutoInjectModule`), регистрирует сервисы и связывает миры по видимости. `EntryPoint` — жизненный цикл: `Start(port)` инициализирует сервисы и миры, запускает TCP-слушатель и главный тик; `Stop()` будит тик через `CancellationToken`, останавливает сеть и destroys миры.
+
+### Verstack.Core / Debug / ECS / NBT
+
+`Core` — базовые абстракции: `VerstackFeature` (контракт Feature'а), `WorldScopes` (имена миров), `ServerTime`. `Debug` — `Logger` с i18n через `LogKey` + `LogLocale`. `ECS` — вендор Leopotam. `NBT` — запланирован.
 
 ## Текущий статус
 
-- ✅ TCP-listener на 25565, принимает соединения.
-- ✅ Читает и фреймит входящие пакеты (`PacketFrameScanner`).
-- ✅ Пишет исходящие кадры (`PacketFraming`).
-- ✅ Handshake state machine: разбирает Handshake, переключает фазу, диспетчеризует по packet id (Status Request → Status Response, Ping → Pong).
-- ✅ Status Response: реальный Minecraft-клиент 1.21.6 при пинге списка серверов видит MOTD, версию и слоты игроков.
-- 🔨 Login (частично): вход в фазу по `nextState = Login`, разбор Login Start (имя + UUID) с сохранением на соединение. Шифрование, сжатие, Login Success и online-mode — не реализованы.
-- ✅ Конкурентность — accept-цикл не блокируется сессией: каждое соединение обслуживается в фоновой задаче, при остановке сервер ждёт хвостовые через `Task.WhenAll`.
-- ✅ Разрыв соединения на мусорный пакет — handler возвращает `PacketVerdict.Disconnect`, SessionLifetime рвёт соединение после flush'а.
+- ✅ ECS-ядро: завендорен Leopotam.EcsProto + QoL, три мира (Global/Gateway/Realm), `AutoInjectModule`/`[DI]`.
+- ✅ Главный тик 20 TPS с try/catch и мгновенной остановкой по сигналу.
+- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, фрейминг `RawPacket`. Пассивный, развязка потоков и ECS.
+- ✅ Gateway/Global: пинг сервер-листа отвечает MOTD/версией/слотами через GLOBAL-кэш с нулевыми аллокациями.
+- ✅ Handshake: парсинг, заполнение `NetworkSession` данными (protocolVersion, IP, serverAddress, serverPort).
+- 🔨 Login/Configuration: каркас `PacketBundle`/`PacketPipeline` готов, бандлы не написаны — пакеты от залогиненного игрока пока приводят к кику.
+- 🔨 Realm: фаза Play не реализована, слой пуст.
+- ⏳ Send-сторона: синхронный `FlushAsync().GetAwaiter().GetResult()` в ECS-системах — узкое место backpressure, запланирован переход на send-очередь.

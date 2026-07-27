@@ -5,7 +5,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Verstack.Protocol\Verstack.Protocol.csproj" />
+      <ProjectReference Include="..\Verstack.Debug\Verstack.Debug.csproj" />
+      <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
     </ItemGroup>
 
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+    </PropertyGroup>
+    
 </Project>
