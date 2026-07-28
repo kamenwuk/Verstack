@@ -13,8 +13,4 @@
       <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Bundles\" />
-    </ItemGroup>
-
 </Project>

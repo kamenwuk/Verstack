@@ -25,8 +25,8 @@ public static class LogLocale
         { LogKey.GatewayStatusInvalidPacket, "Невалидный Status-пакет, канал отключён: {0}" },
         { LogKey.GatewayPacketRejected, "Пакет отклонён конвейером, канал отключён: entity {0}" },
 
-        { LogKey.PacketStatusRequest, "Получен Status Request. Отправляем JSON (MOTD)." },
-        { LogKey.PacketPingRequest, "Получен Ping Request. Отправляем Pong." }
+        { LogKey.PacketStatusExchange, "Status Request -> Status Response (JSON/MOTD) записан в буфер." },
+        { LogKey.PacketPingPong, "Ping Request -> Pong Response (эхо Timestamp) записан в буфер." }
     };
 
     /// <summary>

@@ -26,7 +26,7 @@ internal sealed class PacketDispatchSystem : IProtoRunSystem
             while (channel.IncomingPackets.TryDequeue(out var rawPacket))
             {
                 // Отправляем пакет в конвейер (LoginBundle, ConfigurationBundle и т.д.)
-                if (!_pipeline.TryProcessPacket(rawPacket, tempWriter, ref flowState))
+                if (!_pipeline.TryProcessPacket(entity, rawPacket, tempWriter, ref flowState))
                 {
                     Logger.Warn(LogKey.GatewayPacketRejected, (int)entity);
                     channel.Disconnect();

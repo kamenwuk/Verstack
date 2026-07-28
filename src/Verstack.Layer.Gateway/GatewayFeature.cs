@@ -12,7 +12,8 @@ public sealed class GatewayFeature : VerstackFeature
     {
         systems.AddSystem(new GuestScreeningSystem())
             .AddSystem(new PacketDispatchSystem())
-            .AddService(new GatewayPacketPipeline());
+            .AddService(new GatewayPacketPipeline())
+            .InitHere<GatewayPacketPipeline>();
     }
 
     public override ProtoAspectInject[] GetCacheStores()

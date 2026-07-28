@@ -22,6 +22,6 @@ public enum LogKey
     GatewayStatusInvalidPacket,
     GatewayPacketRejected,
 
-    PacketStatusRequest,
-    PacketPingRequest
+    PacketStatusExchange,
+    PacketPingPong
 }

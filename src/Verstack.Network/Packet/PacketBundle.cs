@@ -1,17 +1,30 @@
 using System.Buffers;
+using Leopotam.EcsProto;
 
 namespace Verstack.Network.Packet;
 
 public abstract class PacketBundle
 {
     public int Index { get; internal set; }
-    
+
     /// <summary>
-    /// Обрабатывает пакет.
+    /// Число шагов в связке. Pipeline использует это, чтобы понять,
+    /// когда шаги закончились и пора перейти к следующему бандлу.
     /// </summary>
-    /// <param name="packet">Сырой пакет от клиента</param>
-    /// <param name="writer">Буфер для записи ответа клиенту</param>
-    /// <param name="state">Текущее состояние конвейера (можно менять)</param>
-    /// <returns>True, если пакет валиден. False — кик.</returns>
-    public abstract bool TryProcess(in RawPacket packet, IBufferWriter<byte> writer, ref PacketFlowState state);
+    public abstract int StepCount { get; }
+
+    /// <summary>
+    /// Вызывается конвейером один раз при сборке. Бандл кэширует
+    /// нужные CacheStore из мира
+    /// </summary>
+    public virtual void Init(IProtoSystems systems) { }
+
+    /// <summary>
+    /// Обрабатывает пакет для конкретного шага связки.
+    /// Состояние потока меняет Pipeline — бандл к нему не прикасается.
+    /// </summary>
+    /// <param name="stepIndex">Текущий шаг (0..StepCount-1).</param>
+    /// <param name="entity">Сущность подключения (NetworkSession и др.).</param>
+    /// <returns>True — шаг пройден. False — кик.</returns>
+    public abstract bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, IBufferWriter<byte> writer);
 }
