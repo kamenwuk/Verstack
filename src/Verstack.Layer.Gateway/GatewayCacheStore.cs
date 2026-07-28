@@ -9,6 +9,7 @@ public sealed class GatewayCacheStore : ProtoAspectInject
 {
     internal readonly ProtoPool<NetworkSession> Sessions = null!;
     internal readonly ProtoPool<PacketFlowState> FlowStates = null!;
+    internal readonly ProtoPool<UserProfile> UserProfiles = null!;
     
     // Прямой словарь: Сущность -> Канал
     private readonly Dictionary<int, NetworkChannel> _entityToChannel = new();

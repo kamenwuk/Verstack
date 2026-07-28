@@ -15,7 +15,8 @@ public static class LogLocale
         { LogKey.NetworkChannelDisconnected, "Канал отключен: {0}" },
         { LogKey.NetworkAcceptFailed, "Ошибка в accept-цикле (работа продолжается)." },
         { LogKey.NetworkSendLoopStarted, "Send-воркер запущен для канала: {0}" },
-
+        { LogKey.NetworkMalformedFrame, "Битый кадр (невалидная длина / мусорный zlib), канал отключён: {0}" },
+        
         { LogKey.ComposerRealmSkipped, "Realm пропущен: нет аспектов, мир не создаётся." },
 
         { LogKey.GatewayNewChannel, "Новый канал передан в Gateway из NetworkService." },
@@ -26,7 +27,9 @@ public static class LogLocale
         { LogKey.GatewayPacketRejected, "Пакет отклонён конвейером, канал отключён: entity {0}" },
 
         { LogKey.PacketStatusExchange, "Status Request -> Status Response (JSON/MOTD) записан в буфер." },
-        { LogKey.PacketPingPong, "Ping Request -> Pong Response (эхо Timestamp) записан в буфер." }
+        { LogKey.PacketPingPong, "Ping Request -> Pong Response (эхо Timestamp) записан в буфер." },
+        { LogKey.PacketLoginStart, "Login Start ({0}) -> Login Success записан в буфер (offline UUID сгенерирован)." },
+        { LogKey.PacketLoginAcknowledged, "Login Acknowledged получен от {0} — фаза Login завершена." }
     };
 
     /// <summary>

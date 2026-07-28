@@ -27,6 +27,7 @@ A static class with the server's base constants:
 - `TICKS_PER_SECOND = 20` — the standard Minecraft TPS.
 - `TICK_INTERVAL = 1.0 / 20` — the tick duration in seconds (50 ms). Used in `EntryPoint.RunMainLoop` to compute the sleep.
 - `SERVER_INFO_UPDATE_INTERVAL = 1.0` — the status-cache refresh interval.
+- `COMPRESSION_THRESHOLD = 256` — the packet-compression threshold (Set Compression, bytes). Packets at or above the threshold are zlib-compressed; smaller ones go out uncompressed but still in the compressed-framing format (`DataLength = 0`). `256` is the vanilla standard. `-1` or the absence of a Set Compression packet disables compression entirely. Read by `LoginStartBundle` when sending Set Compression.
 
 ## ServerTime
 

@@ -22,6 +22,17 @@ public sealed class NetworkChannel
     public readonly PipeReader Reader;
     public readonly PipeWriter Writer;
 
+    /// <summary>
+    /// Порог сжатия пакетов (Set Compression) для этого канала. -1 — compression выключена
+    /// (несжатый framing), ≥ 0 — compressed framing по протоколу Minecraft.
+    ///
+    /// Записывается ECS-потоком (<c>PacketDispatchSystem</c> при отправке Set Compression),
+    /// читается read-потоком (<c>TcpNetworkService.TryReadPacket</c>) — поэтому <see cref="volatile"/>:
+    /// атомарная видимость значения между потоками без захода в ECS-мир из read-цикла.
+    /// Симметрично <see cref="_isDisconnected"/> по модели cross-thread флага на канале.
+    /// </summary>
+    public volatile int CompressionThreshold = -1;
+    
     // Потокобезопасная очередь входящих пакетов: read-поток → ECS-система.
     public readonly ConcurrentQueue<RawPacket> IncomingPackets = new();
 

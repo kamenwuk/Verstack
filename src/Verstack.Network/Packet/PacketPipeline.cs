@@ -8,6 +8,12 @@ namespace Verstack.Network.Packet
     /// </summary>
     public sealed class PacketPipeline
     {
+        /// <summary>
+        /// Число бандлов. Выход <see cref="PacketFlowState.BundleIndex"/> за этот предел
+        /// означает, что конвейер прошёл все фазы — соединение обработано до конца.
+        /// </summary>
+        public int BundleCount => _bundles.Length;
+        
         private readonly PacketBundle[] _bundles;
 
         public PacketPipeline(IProtoSystems systems, PacketBundle[] bundles)
@@ -25,15 +31,15 @@ namespace Verstack.Network.Packet
         /// <summary>
         /// Запускает пакет через текущий бандл.
         /// </summary>
-        public bool TryProcessPacket(ProtoEntity entity, in RawPacket packet, IBufferWriter<byte> writer, ref PacketFlowState state)
+        public bool TryProcessPacket(ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound, ref PacketFlowState state)
         {
             if (state.BundleIndex < 0 || state.BundleIndex >= _bundles.Length)
                 return false;
-            
+
             var bundle = _bundles[state.BundleIndex];
-            if (!bundle.TryProcess(state.StepIndex, entity, packet, writer))
+            if (!bundle.TryProcess(state.StepIndex, entity, packet, ref outbound))
                 return false;
-            
+
             state.StepIndex++;
             if (state.StepIndex >= bundle.StepCount)
             {

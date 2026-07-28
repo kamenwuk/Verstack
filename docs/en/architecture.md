@@ -59,7 +59,7 @@ Dependencies are linear and point downward, toward the foundation. `App` is the 
 | `Core`            | Debug, ECS                                           | layers, Network                             |
 | `ECS` / `Debug` / `NBT` | BCL only                                       | anything application-level                  |
 
-- **Layers never touch sockets directly.** The only path bytes take to the network is through a `NetworkChannel`, which a layer receives from `TcpNetworkService` and writes its response into. Network knows nothing about Minecraft phases.
+- **Layers never touch sockets directly.** The only path bytes take to the network is through a `NetworkChannel`, which a layer receives from `TcpNetworkService`. A bundle describes outgoing packets via `PacketOutbound` (a `ref struct` over heap buffers); framing and compression are the transport's concern, not the bundle's. Network knows nothing about Minecraft phases.
 - **ECS is the foundation under the layers.** Vendored `Leopotam.EcsProto` (+QoL) lives in `Verstack.ECS`; every layer and Network depend on it. It is not thread-safe — synchronization is done by ECS systems (see the network decoupling below).
 
 ## ECS worlds and their visibility
@@ -97,7 +97,7 @@ The key idea of backpressure: under a DDoS attack on Gateway (`gatewaySystems.Ru
 
 ### Verstack.Network
 
-Passive byte pump. `TcpNetworkService` owns the listening socket and the accept loop: for each connection it creates a `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), pushes it into `PendingConnections`, and starts a background read. The read splits the byte stream into `RawPacket`s (packet id + payload) and enqueues them — with no Minecraft semantics whatsoever. `DataTypes/` holds encoding primitives (VarInt, Numeric, Utf8String, etc.), `Packet/` holds the pipeline skeleton (`RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`).
+Passive byte pump. `TcpNetworkService` owns the listening socket and the accept loop: for each connection it creates a `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), pushes it into `PendingConnections`, and starts a background read. The read splits the byte stream into `RawPacket`s (packet id + payload) via `PacketFrame.TryRead` and enqueues them — with no Minecraft semantics whatsoever. `DataTypes/` holds encoding primitives (VarInt, Numeric, Utf8String, Uuid, PrefixedArray, etc.). `Packet/` holds framing and the pipeline skeleton: `PacketFrame`/`PacketFrameResult` (compression-aware framing), `PacketOutbound`/`SpanWriter` (GC-free outbound for bundles), `RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`. `Compression/` holds the `IPacketCompressor`/`IPacketDecompressor` abstractions and the default zlib implementations — framing switches to compressed format after a `Set Compression` per channel.
 
 → [Network](network/index.md)
 
@@ -123,15 +123,19 @@ Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s o
 
 ### Verstack.Core / Debug / ECS / NBT
 
-`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the Leopotam vendor. `NBT` — planned.
+`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the vendored `Leopotam.EcsProto` (+QoL), the foundation under the layers. `NBT` — planned.
+
+`Verstack.ECS` is the only third-party code in the project and is licensed under **MIT-ZARYA** ([LICENSE.md](../../src/Verstack.ECS/LICENSE.md)). MIT-ZARYA permits use and redistribution with one condition: if the software is localized into multiple languages, a Russian localization is mandatory and must be no less complete than any other. Verstack meets this — `docs/ru/` and `README.ru.md` mirror the English ones. The license file is included in the build output of `Verstack.ECS`.
 
 ## Current status
 
 - ✅ ECS core: vendored Leopotam.EcsProto + QoL, three worlds (Global/Gateway/Realm), `AutoInjectModule`/`[DI]`.
 - ✅ Main tick at 20 TPS with try/catch and instant stop on signal.
-- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, `RawPacket` framing. Passive, thread/ECS decoupled.
+- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, `PacketFrame` framing with `PacketOutbound` for bundles. Passive, thread/ECS decoupled.
 - ✅ Gateway/Global: server-list ping answers with MOTD/version/slots via the GLOBAL cache at zero allocations.
 - ✅ Handshake: parsing, populating `NetworkSession` with data (protocolVersion, IP, serverAddress, serverPort).
-- 🔨 Login/Configuration: the `PacketBundle`/`PacketPipeline` skeleton is in place, but bundles are not written — packets from a logged-in player currently lead to a kick.
+- ✅ Status: full ping exchange (Request → JSON Response, Ping → Pong) through the bundle conveyor, entity-backed.
+- ✅ Login: offline-mode flow — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 from `"OfflinePlayer:<name>"`, protocol-776 Session ID field. Channel closes on phase completion (REALM/Configuration not implemented yet).
+- ✅ Compression: zlib (RFC 1950) framing in both directions, per-channel threshold (256, vanilla standard), GC-free cold path. Enabled after Set Compression.
+- 🔨 Configuration: not implemented — the layer does not yet handle packets after Login Acknowledged.
 - 🔨 Realm: the Play phase is not implemented, the layer is empty.
-- ⏳ Send side: the synchronous `FlushAsync().GetAwaiter().GetResult()` in ECS systems is a backpressure bottleneck — a move to a send queue is planned.

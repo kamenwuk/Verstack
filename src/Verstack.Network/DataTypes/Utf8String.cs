@@ -48,4 +48,15 @@ public static class Utf8String
         Encoding.UTF8.GetBytes(value, span);
         writer.Advance(byteCount);
     }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void Write(ref Packet.SpanWriter writer, string value)
+    {
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+
+        VarInt.Write(ref writer, byteCount);
+
+        Encoding.UTF8.GetBytes(value, writer.GetSpan(byteCount));
+        writer.Advance(byteCount);
+    }
 }

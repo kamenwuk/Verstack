@@ -21,26 +21,35 @@ See the [Wiki](docs/en/index.md).
 
 ## Tech stack
 
-| Area         | Choice                                            |
-|--------------|---------------------------------------------------|
-| Runtime      | .NET 10 (LTS)                                     |
-| Network      | `Pipelines.Sockets.Unofficial` over raw sockets   |
-| Async        | `System.IO.Pipelines` (`PipeReader`/`PipeWriter`) |
-| Architecture | DOD, ECS-style systems, no deep class hierarchies |
+| Area         | Choice                                                          |
+|--------------|-----------------------------------------------------------------|
+| Runtime      | .NET 10 (LTS)                                                   |
+| Network      | `Pipelines.Sockets.Unofficial` over raw sockets                 |
+| Async        | `System.IO.Pipelines` (`PipeReader`/`PipeWriter`)               |
+| Architecture | DOD, ECS-style systems, no deep class hierarchies               |
+| ECS          | vendored `Leopotam.EcsProto` (+QoL) — DOD, GC-free hot path     |
 
 ## Project structure
 
+Three ECS worlds by scope — `GLOBAL` (visible to all), `GATEWAY` (the entry layer: Handshake/Status/Login/Configuration), `REALM` (the Play phase). Visibility of worlds and project dependencies point the same way: `Layer.Realm → Layer.Gateway → Layer.Global → Core`. Network knows nothing about Minecraft phases; phase layers never touch sockets directly.
+
 ```text
 src/
-├── Verstack.Network/    TCP layer, connection lifecycle. Knows nothing about Minecraft.
-├── Verstack.Protocol/   Minecraft wire format: VarInt, NBT, framing, packet ids. Pure logic.
-└── Verstack.App/        Entry point, composition root.
-tests/
-└── Verstack.Protocol.Tests/   Unit tests for protocol primitives.
+├── Verstack.App/            Entry point.
+├── Verstack.Bootstrap/      Composition: ServerComposer + the main tick loop.
+├── Verstack.Core/           Base abstractions: VerstackFeature, WorldScopes, ServerTime.
+├── Verstack.Debug/          Logger (LogKey + LogLocale, i18n dictionary).
+├── Verstack.ECS/            Vendored Leopotam.EcsProto + QoL. 0 NuGet, BCL only.
+├── Verstack.Network/        TCP/sockets + framing (incl. compression). Passive byte pump.
+├── Verstack.Layer.Global/   GLOBAL world: MOTD, ServerInfo, constants.
+├── Verstack.Layer.Gateway/  GATEWAY world: Handshake, Status, Login, Configuration.
+├── Verstack.Layer.Realm/    REALM world: Play phase (planned).
+└── Verstack.NBT/            NBT (planned).
+tools/
+└── Verstack.Probe/          Load-testing N-client simulator.
 ```
 
-The **Network / Protocol** split is deliberate: Protocol can be tested in isolation by feeding it `Span<byte>`, with no
-socket involved.
+The phase layers are built entirely on ECS: each Minecraft phase is ECS systems over the world, and packets flow through a conveyor of `PacketBundle`s. Each bundle describes outgoing packets via `PacketOutbound`; framing and compression are the transport's concern. See [Architecture](docs/en/architecture.md) for the full map.
 
 ## Build & run
 
@@ -50,6 +59,10 @@ Requirements: **.NET 10 SDK**.
 dotnet build
 dotnet run --project src/Verstack.App
 ```
+
+## Third-party licenses
+
+- **[Leopotam.EcsProto](https://github.com/Leopotam/EcsProto)** (+QoL) — vendored under [MIT-ZARYA](src/Verstack.ECS/LICENSE.md). MIT-ZARYA permits use, modification, and redistribution, with one condition: if the software is localized into multiple languages, **a Russian localization is mandatory** and must be no less complete than any other. Verstack meets this — `docs/ru/` and `README.ru.md` mirror the English ones.
 
 ## License
 

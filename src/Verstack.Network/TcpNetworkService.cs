@@ -6,20 +6,32 @@ using System.Net.Sockets;
 using Verstack.Debug;
 using System.Buffers;
 using System.Net;
+using Verstack.Network.Compression;
 
 namespace Verstack.Network
 {
     public class TcpNetworkService
     {
-        private Socket _listener;
-        private CancellationTokenSource _cts;
-
         // Очередь новых подключений
         public ConcurrentQueue<NetworkChannel> PendingConnections { get; } = new();
 
         // Очередь ОТКЛЮЧЕННЫХ каналов (События смерти)
         public ConcurrentQueue<NetworkChannel> DisconnectedChannels { get; } = new();
 
+        // Декомпрессор для read-фрейминга. null — compression не настроена.
+        // Передаётся через конструктор из EntryPoint; не ECS-сервис — нужен только read-потоку.
+        private readonly IPacketDecompressor _decompressor;
+
+        private CancellationTokenSource _cts;
+        private Socket _listener;
+        
+        /// <param name="decompressor">Декомпрессор пакетов. Если null — сжатые кадры
+        /// будут отброшены как Malformed (см. <see cref="PacketFrame.TryRead"/>).</param>
+        public TcpNetworkService(IPacketDecompressor decompressor = null)
+        {
+            _decompressor = decompressor;
+        }
+        
         public void Start(int port)
         {
             _cts = new CancellationTokenSource();
@@ -82,8 +94,18 @@ namespace Verstack.Network
                         break; // Клиент отключился
 
                     // Бесконечно режем байты на пакеты и кидаем в очередь
-                    while (TryReadPacket(ref buffer, out int packetId, out byte[] data))
+                    while (true)
                     {
+                        var frameResult = TryReadPacket(channel, ref buffer, out int packetId, out byte[] data);
+                        if (frameResult == PacketFrameResult.Malformed)
+                        {
+                            Logger.Warn(LogKey.NetworkMalformedFrame, channel.RemoteAddress);
+                            channel.Disconnect();
+                            break;
+                        }
+                        if (frameResult != PacketFrameResult.Complete)
+                            break; // Partial — ждём ещё данных
+
                         channel.IncomingPackets.Enqueue(new RawPacket(packetId, data));
                     }
 
@@ -150,45 +172,17 @@ namespace Verstack.Network
             }
         }
 
-        private bool TryReadPacket(ref ReadOnlySequence<byte> buffer, out int packetId, out byte[] data)
+        /// <summary>
+        /// Вырезает один пакет из буфера через <see cref="PacketFrame.TryRead"/>.
+        /// При Complete сдвигает буфер до consumed; при Partial/Malformed буфер не трогает.
+        /// </summary>
+        private PacketFrameResult TryReadPacket(NetworkChannel channel, ref ReadOnlySequence<byte> buffer, out int packetId, out byte[] data)
         {
-            packetId = 0;
-            data = null;
-
-            var reader = new SequenceReader<byte>(buffer);
-
-            // 1. Читаем длину пакета (VarInt)
-            if (!VarInt.TryRead(ref reader, out int length))
-                return false;
-
-            // 2. Проверяем, есть ли само тело пакета
-            if (reader.Remaining < length)
-                return false;
-
-            // 3. Запоминаем позицию, где начинается пакет (ID + Данные)
-            var packetStart = reader.Position;
-
-            // 4. Читаем ID пакета (VarInt)
-            if (!VarInt.TryRead(ref reader, out packetId))
-                return false;
-
-            // 5. Запоминаем позицию, где начинаются данные (после ID)
-            var payloadStart = reader.Position;
-
-            // 6. Вычисляем точный размер данных
-            long idSize = buffer.Slice(packetStart, payloadStart).Length;
-            int dataLength = length - (int)idSize;
-
-            // 7. Копируем данные
-            data = new byte[dataLength];
-            var payloadSequence = buffer.Slice(payloadStart, dataLength);
-            payloadSequence.CopyTo(data);
-
-            // 8. Сдвигаем буфер: отрезаем длину пакета и сам пакет
-            // payloadSequence.End указывает на конец текущего пакета
-            buffer = buffer.Slice(payloadSequence.End);
-
-            return true;
+            var result = PacketFrame.TryRead(buffer, channel.CompressionThreshold, _decompressor,
+                out packetId, out data, out var consumed);
+            if (result == PacketFrameResult.Complete)
+                buffer = buffer.Slice(consumed);
+            return result;
         }
     }
 }

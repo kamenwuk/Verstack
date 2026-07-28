@@ -5,6 +5,8 @@ using Leopotam.EcsProto;
 using Verstack.Network;
 using Verstack.Debug;
 using Verstack.Core;
+using Verstack.Network.Compression;
+using Verstack.Network.Packet;
 
 namespace Verstack.Bootstrap;
 
@@ -30,12 +32,13 @@ public sealed class EntryPoint
         
         // 1. Инициализация базовых сервисов
         _serverTime = new ServerTime();
-        _tcpNetworkService = new TcpNetworkService();
+        _tcpNetworkService = new TcpNetworkService(new ZLibPacketDecompressor());
 
         var composer = new ServerComposer(new GlobalFeature(),
                 new GatewayFeature(), new RealmFeature())
             .AddService(_serverTime)
-            .AddService(_tcpNetworkService);
+            .AddService(_tcpNetworkService)
+            .AddService(new ZLibPacketCompressor());
 
         var (globalSystems, gatewaySystems, realmSystems) = composer.Compose();
 

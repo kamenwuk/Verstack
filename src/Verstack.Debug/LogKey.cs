@@ -12,7 +12,8 @@ public enum LogKey
     NetworkChannelDisconnected,
     NetworkAcceptFailed,
     NetworkSendLoopStarted,
-
+    NetworkMalformedFrame,
+    
     ComposerRealmSkipped,
 
     GatewayNewChannel,
@@ -23,5 +24,7 @@ public enum LogKey
     GatewayPacketRejected,
 
     PacketStatusExchange,
-    PacketPingPong
+    PacketPingPong,
+    PacketLoginStart,
+    PacketLoginAcknowledged
 }

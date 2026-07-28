@@ -6,4 +6,12 @@
         <Nullable>disable</Nullable>
     </PropertyGroup>
 
+    <!-- Лицензия вендора (Leopotam.EcsProto, MIT-ZARYA) включается в артефакты сборки,
+         чтобы распространяться с каждой копией — требование самой лицензии. -->
+    <ItemGroup>
+        <None Include="LICENSE.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>

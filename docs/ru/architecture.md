@@ -59,7 +59,7 @@ tools/
 | `Core`           | Debug, ECS                                          | слои, Network                               |
 | `ECS` / `Debug` / `NBT` | только BCL                                   | всё прикладное                              |
 
-- **Слои не лезут в сокеты напрямую.** Единственный путь байта в сеть — через `NetworkChannel`, который слой получает от `TcpNetworkService` и в который пишет ответ. Network не знает про Minecraft-фазы.
+- **Слои не лезут в сокеты напрямую.** Единственный путь байта в сеть — через `NetworkChannel`, который слой получает от `TcpNetworkService`. Бандл описывает исходящие пакеты через `PacketOutbound` (`ref struct` поверх heap-буферов); фрейминг и compression — забота транспорта, а не бандла. Network не знает про Minecraft-фазы.
 - **ECS — фундамент под слоями.** Завендоренный `Leopotam.EcsProto` (+QoL) лежит в `Verstack.ECS`, от него зависят все слои и Network. Не потокобезопасен — синхронизация делается ECS-системами (см. ниже развязку с сетью).
 
 ## ECS-миры и их видимость
@@ -97,7 +97,7 @@ while (_isRunning):
 
 ### Verstack.Network
 
-Пассивный насос байт. `TcpNetworkService` владеет слушающим сокетом и accept-циклом: для каждого соединения создаёт `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), кидает его в `PendingConnections` и запускает фоновое чтение. Чтение режет поток байт на `RawPacket` (packet id + payload) и складывает в очередь канала — без какой-либо семантики Minecraft. `DataTypes/` содержит примитивы кодирования (VarInt, Numeric, Utf8String и т.д.), `Packet/` — каркас конвейера (`RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`).
+Пассивный насос байт. `TcpNetworkService` владеет слушающим сокетом и accept-циклом: для каждого соединения создаёт `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), кидает его в `PendingConnections` и запускает фоновое чтение. Чтение режет поток байт на `RawPacket` (packet id + payload) через `PacketFrame.TryRead` и складывает в очередь канала — без какой-либо семантики Minecraft. `DataTypes/` содержит примитивы кодирования (VarInt, Numeric, Utf8String, Uuid, PrefixedArray и т.д.). `Packet/` содержит фрейминг и каркас конвейера: `PacketFrame`/`PacketFrameResult` (compression-aware framing), `PacketOutbound`/`SpanWriter` (GC-free outbound для бандлов), `RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`. `Compression/` — абстракции `IPacketCompressor`/`IPacketDecompressor` и zlib-реализации по умолчанию; фрейминг переключается на compressed-формат после Set Compression на канале.
 
 → [Network](network/index.md)
 
@@ -123,15 +123,19 @@ REALM-мир, фаза Play. Зарезервирован, `RealmFeature` пок
 
 ### Verstack.Core / Debug / ECS / NBT
 
-`Core` — базовые абстракции: `VerstackFeature` (контракт Feature'а), `WorldScopes` (имена миров), `ServerTime`. `Debug` — `Logger` с i18n через `LogKey` + `LogLocale`. `ECS` — вендор Leopotam. `NBT` — запланирован.
+`Core` — базовые абстракции: `VerstackFeature` (контракт Feature'а), `WorldScopes` (имена миров), `ServerTime`. `Debug` — `Logger` с i18n через `LogKey` + `LogLocale`. `ECS` — завендоренный `Leopotam.EcsProto` (+QoL), фундамент под слоями. `NBT` — запланирован.
+
+`Verstack.ECS` — единственный сторонний код в проекте, лицензирован под **MIT-ZARYA** ([LICENSE.md](../../src/Verstack.ECS/LICENSE.md)). MIT-ZARYA разрешает использование и распространение с одним условием: если ПО локализовано на несколько языков, обязательна локализация на Русский язык, не менее полная, чем на любом другом. Verstack этому соответствует — `docs/ru/` и `README.ru.md` зеркальны английским. Файл лицензии включается в выходные артефакты сборки `Verstack.ECS`.
 
 ## Текущий статус
 
 - ✅ ECS-ядро: завендорен Leopotam.EcsProto + QoL, три мира (Global/Gateway/Realm), `AutoInjectModule`/`[DI]`.
 - ✅ Главный тик 20 TPS с try/catch и мгновенной остановкой по сигналу.
-- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, фрейминг `RawPacket`. Пассивный, развязка потоков и ECS.
+- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, фрейминг `PacketFrame` с `PacketOutbound` для бандлов. Пассивный, развязка потоков и ECS.
 - ✅ Gateway/Global: пинг сервер-листа отвечает MOTD/версией/слотами через GLOBAL-кэш с нулевыми аллокациями.
 - ✅ Handshake: парсинг, заполнение `NetworkSession` данными (protocolVersion, IP, serverAddress, serverPort).
-- 🔨 Login/Configuration: каркас `PacketBundle`/`PacketPipeline` готов, бандлы не написаны — пакеты от залогиненного игрока пока приводят к кику.
+- ✅ Status: полный пинг-обмен (Request → JSON Response, Ping → Pong) через конвейер бандлов, на сущности.
+- ✅ Login: offline-флоу — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 от `"OfflinePlayer:<name>"`, поле Session ID протокола 776. После завершения фазы канал закрывается (REALM/Configuration пока не реализованы).
+- ✅ Compression: zlib (RFC 1950) фрейминг в обе стороны, per-channel threshold (256, стандарт ванили), GC-free холодный путь. Включается после Set Compression.
+- 🔨 Configuration: не реализовано — слой пока не обрабатывает пакеты после Login Acknowledged.
 - 🔨 Realm: фаза Play не реализована, слой пуст.
-- ⏳ Send-сторона: синхронный `FlushAsync().GetAwaiter().GetResult()` в ECS-системах — узкое место backpressure, запланирован переход на send-очередь.

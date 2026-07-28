@@ -27,6 +27,7 @@ Global — GLOBAL-мир в ECS, виден всем остальным мира
 - `TICKS_PER_SECOND = 20` — стандартный TPS Minecraft.
 - `TICK_INTERVAL = 1.0 / 20` — длительность тика в секундах (50 мс). Используется в `EntryPoint.RunMainLoop` для расчёта сна.
 - `SERVER_INFO_UPDATE_INTERVAL = 1.0` — интервал обновления кэша статуса.
+- `COMPRESSION_THRESHOLD = 256` — порог сжатия пакетов (Set Compression, байты). Пакеты размером ≥ threshold сжимаются (zlib); меньшие уходят несжатыми, но всё равно в формате compressed-фрейминга (`DataLength = 0`). `256` — стандарт ванили. `-1` или отсутствие пакета Set Compression отключает compression. Читается `LoginStartBundle` при отправке Set Compression.
 
 ## ServerTime
 
