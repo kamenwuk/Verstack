@@ -64,6 +64,70 @@ public class ModifiedUtf8Tests
 
         Assert.Equal(ParseHex("61 C0 80 C3 A9"), actual);
     }
+    
+    /// <summary>
+    /// Round-trip Write → Read(Span&lt;char&gt;) = исходная строка. Покрывает все ветви декодера:
+    /// ASCII, 2-байт, NUL, 3-байт (вкл. суррогаты). Использует те же InlineData, что и
+    /// Write_ProducesExpectedBytes — гарантирует, что любые байты, которые пишем, умеем читать обратно.
+    /// </summary>
+    [Theory]
+    [InlineData("a")]                          // ASCII
+    [InlineData("é")]                          // 2-байт
+    [InlineData("\0")]                         // NUL: 0xC0 0x80 — ключевое отличие от UTF-8
+    [InlineData("€")]                          // 3-байт
+    [InlineData("")]                           // пустая
+    [InlineData("a\0é")]                       // смешанная: порядок байт критичен
+    [InlineData("😀")]                          // суррогатная пара: 6 байт → 2 char
+    [InlineData("minecraft:chat_type")]        // реальный кейс NBT: identifier
+    [InlineData("Имя-на-русском")]              // кириллица: сплошь 2-байт
+    public void Read_IsInverseOfWrite(string value)
+    {
+        byte[] bytes = new byte[ModifiedUtf8.GetByteCount(value)];
+        ModifiedUtf8.Write(value, bytes);
+
+        // destination размера bytes.Length — гарантированный max (char-счёт ≤ byte-счёт).
+        Span<char> destination = stackalloc char[bytes.Length == 0 ? 1 : bytes.Length];
+        ModifiedUtf8.Read(bytes, destination, out int charsWritten);
+
+        Assert.Equal(value, new string(destination[..charsWritten]));
+    }
+
+    /// <summary>
+    /// Эталонные байты суррогатной пары (ED A0 BD ED B8 80) → символ 😀. Защита регресса на
+    /// обратную сторону write-теста Write_SurrogatePair_ProducesSixBytes: тот же hex, читаем обратно.
+    /// </summary>
+    [Fact]
+    public void Read_SurrogatePair_DecodesSixBytesToEmoji()
+    {
+        byte[] bytes = ParseHex("ED A0 BD ED B8 80");
+
+        Span<char> destination = stackalloc char[6];
+        ModifiedUtf8.Read(bytes, destination, out int charsWritten);
+
+        Assert.Equal(2, charsWritten);                 // 2 UTF-16 char = суррогатная пара
+        Assert.Equal("😀", new string(destination[..charsWritten]));
+    }
+
+    /// <summary>
+    /// Буфер destination слишком мал → исключение (только в DEBUG). Защита от silent corruption:
+    /// caller обязан резервировать ≥ source.Length.
+    /// </summary>
+    [Fact]
+    public void Read_DestinationTooSmall_Throws()
+    {
+        byte[] bytes = ParseHex("C3 A9");   // "é", 2 байта
+        Span<char> tooSmall = stackalloc char[1];   // нужно ≥ 2 (source.Length)
+
+        bool threw = false;
+        try { ModifiedUtf8.Read(bytes, tooSmall, out _); }
+#if DEBUG
+        catch (InvalidOperationException) { threw = true; }
+#else
+        // В Release проверки нет — Span сам бросит при переполнении.
+        catch (Exception) { threw = true; }
+#endif
+        Assert.True(threw, "Ожидалось исключение при слишком малом destination.");
+    }
 
     private static byte[] ParseHex(string hex) => Convert.FromHexString(hex.Replace(" ", ""));
 }

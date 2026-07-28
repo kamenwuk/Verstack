@@ -13,7 +13,7 @@ src/
 ├── Verstack.Core/                     ← base abstractions: VerstackFeature, WorldScopes, ServerTime
 ├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n dictionary)
 ├── Verstack.ECS/                      ← vendored Leopotam.EcsProto + QoL. 0 NuGet
-├── Verstack.NBT/                      ← NBT writer: NbtWriter (ref struct), ModifiedUtf8, networked root
+├── Verstack.NBT/                      ← NBT writer+reader: NbtWriter/NbtReader (ref struct), ModifiedUtf8, networked root
 ├── Verstack.Network/                  ← TCP/sockets + framing. Passive byte pump
 ├── Verstack.Layer.Global/             ← GLOBAL world: MOTD, ServerInfo, constants
 ├── Verstack.Layer.Gateway/            ← GATEWAY world: Handshake, Status, Login, Configuration
@@ -123,7 +123,7 @@ Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s o
 
 ### Verstack.NBT
 
-NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free writes straight into `Span<byte>` through an `NbtFrame` stack), `ModifiedUtf8` (Java modified UTF-8), networked root by default. Writer-only — the reader is deferred to Play. A BCL leaf, 0 dependencies.
+NBT writer + reader (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free writes straight into `Span<byte>` through an `NbtFrame` stack) and `NbtReader` (its mirror, sequental + lookup), `ModifiedUtf8` (Java modified UTF-8 in both directions), networked root by default. Symmetric writer/reader over a single `NbtFrame` stack. The DOM is deferred. A BCL leaf, 0 dependencies.
 
 → [NBT](nbt/index.md)
 
@@ -143,6 +143,6 @@ NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free writes straigh
 - ✅ Status: full ping exchange (Request → JSON Response, Ping → Pong) through the bundle conveyor, entity-backed.
 - ✅ Login: offline-mode flow — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 from `"OfflinePlayer:<name>"`, protocol-776 Session ID field. Channel closes on phase completion (REALM/Configuration not implemented yet).
 - ✅ Compression: zlib (RFC 1950) framing in both directions, per-channel threshold (256, vanilla standard), GC-free cold path. Enabled after Set Compression.
-- ✅ NBT: GC-free writer — `NbtWriter` (`ref struct`, `Span<byte>`, `NbtFrame` stack), `ModifiedUtf8`, networked root. Reader and DOM deferred to Play.
-- 🔨 Configuration: not implemented — the layer does not yet handle packets after Login Acknowledged.
+- ✅ NBT: GC-free writer + reader — `NbtWriter`/`NbtReader` (`ref struct`, `Span<byte>`, `NbtFrame` stack), `ModifiedUtf8` (both directions), networked root. Reader: sequental-core + lookup by name. The DOM is deferred.
+- 🔨 Configuration: the skeleton (ClientInformation → KnownPacks → Feature Flags → Finish → Disconnect) works; Registry Data (S→C 0x07) and full registry bodies are the next task via `Verstack.Vanilla`.
 - 🔨 Realm: the Play phase is not implemented, the layer is empty.

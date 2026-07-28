@@ -92,4 +92,75 @@ internal static class ModifiedUtf8
             }
         }
     }
+    
+    /// <summary>
+    /// Декодирует modified-UTF-8 байты в <c>Span&lt;char&gt;</c> — симметрия с <see cref="Write"/>,
+    /// обратная битовая разбивка, zero-alloc. Caller передаёт ровно те байты, что составляют строку
+    /// (без Short-префикса длины — длина NBT-строки читается отдельно и caller отрезает нужный срез),
+    /// и destination-буфер для char'ов.
+    ///
+    /// <b>Размер destination.</b> Число получающихся char'ов всегда ≤ числу байт: любая multi-byte
+    /// последовательность занимает ≥2 байт на char. Поэтому безопасный верхний предел —
+    /// <c>source.Length</c>: caller резервирует <c>stackalloc char[source.Length]</c> (или арендует
+    /// из <c>ArrayPool&lt;char&gt;</c> для длинных строк) и гарантированно вмещает результат.
+    /// </summary>
+    /// <param name="source">Байты modified-UTF-8 (без Short-префикса длины).</param>
+    /// <param name="destination">Буфер под char'ы; размер ≥ <paramref name="source"/>.Length (max возможный).</param>
+    /// <param name="charsWritten">Сколько char реально записано в <paramref name="destination"/>.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void Read(ReadOnlySpan<byte> source, Span<char> destination, out int charsWritten)
+    {
+#if DEBUG
+        if (destination.Length < source.Length)
+            throw new InvalidOperationException(
+                $"[{nameof(ModifiedUtf8)}] Буфер слишком мал: max char = source.Length = {source.Length}, " +
+                $"доступно {destination.Length}. Резервируйте stackalloc char[source.Length].");
+#endif
+        // Быстрый путь: чистый ASCII (доминирующий случай для имён NBT-тегов и идентификаторов) —
+        // длина в байтах = длине в char, widen byte→char векторизованно (BCL cast).
+        bool ascii = true;
+        for (int idx = 0; idx < source.Length; idx++)
+        {
+            if (source[idx] >= 0x80) { ascii = false; break; }
+        }
+        if (ascii)
+        {
+            // Widen 1 байт → 1 char без модификаций (ASCII ⊂ Latin1 = кодовым точкам).
+            // Ручной цикл на спеке inline'ится; MemoryMarshal.Cast здесь избыточен (нужен readonly→writeable).
+            for (int i = 0; i < source.Length; i++)
+                destination[i] = (char)source[i];
+            charsWritten = source.Length;
+            return;
+        }
+
+        // Медленный путь: multi-byte декодирование. Симметрично Write, обратный цикл.
+        int ci = 0;
+        int pos = 0;
+        while (pos < source.Length)
+        {
+            byte b = source[pos++];
+            if (b < 0x80)
+            {
+                // 0xxxxxxx → ASCII.
+                destination[ci++] = (char)b;
+            }
+            else if ((b & 0xE0) == 0xC0)
+            {
+                // 110xxxxx 10xxxxxx — двухбайтный блок. Сюда же NUL: 0xC0 0x80 → 0x0000.
+                byte b2 = source[pos++];
+                destination[ci++] = (char)(((b & 0x1F) << 6) | (b2 & 0x3F));
+            }
+            else
+            {
+                // 1110xxxx 10xxxxxx 10xxxxxx — трёхбайтный блок. Сюда попадают и UTF-16 суррогаты
+                // (0xD800–0xDFFF): каждый суррогат кодируется своим трёхбайтником. .NET-строка UTF-16,
+                // поэтому кладём оба суррогата как есть — пара воссоздаётся на уровне строки caller'а.
+                byte b2 = source[pos++];
+                byte b3 = source[pos++];
+                destination[ci++] = (char)(((b & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
+            }
+        }
+
+        charsWritten = ci;
+    }
 }

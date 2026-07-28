@@ -13,7 +13,7 @@ src/
 ├── Verstack.Core/                     ← базовые абстракции: VerstackFeature, WorldScopes, ServerTime
 ├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n-словарь)
 ├── Verstack.ECS/                      ← завендоренный Leopotam.EcsProto + QoL. 0 NuGet
-├── Verstack.NBT/                      ← NBT writer: NbtWriter (ref struct), ModifiedUtf8, networked-root
+├── Verstack.NBT/                      ← NBT writer+reader: NbtWriter/NbtReader (ref struct), ModifiedUtf8, networked-root
 ├── Verstack.Network/                  ← TCP/сокеты + фрейминг. Пассивный насос байт
 ├── Verstack.Layer.Global/             ← GLOBAL-мир: MOTD, ServerInfo, константы
 ├── Verstack.Layer.Gateway/            ← GATEWAY-мир: Handshake, Status, Login, Configuration
@@ -123,7 +123,7 @@ REALM-мир, фаза Play. Зарезервирован, `RealmFeature` пок
 
 ### Verstack.NBT
 
-NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free запись прямо в `Span<byte>` через стек `NbtFrame`), `ModifiedUtf8` (Java modified-UTF-8), networked-root по умолчанию. Writer-only — reader отложен до Play. BCL-лист, 0 зависимостей.
+NBT writer + reader (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free запись прямо в `Span<byte>` через стек `NbtFrame`) и `NbtReader` (зеркало, sequental + lookup), `ModifiedUtf8` (Java modified-UTF-8 в обе стороны), networked-root по умолчанию. Симметричный writer/reader через один `NbtFrame`-стек. DOM отложена. BCL-лист, 0 зависимостей.
 
 → [NBT](nbt/index.md)
 
@@ -143,6 +143,6 @@ NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free запись �
 - ✅ Status: полный пинг-обмен (Request → JSON Response, Ping → Pong) через конвейер бандлов, на сущности.
 - ✅ Login: offline-флоу — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 от `"OfflinePlayer:<name>"`, поле Session ID протокола 776. После завершения фазы канал закрывается (REALM/Configuration пока не реализованы).
 - ✅ Compression: zlib (RFC 1950) фрейминг в обе стороны, per-channel threshold (256, стандарт ванили), GC-free холодный путь. Включается после Set Compression.
-- ✅ NBT: GC-free writer — `NbtWriter` (`ref struct`, `Span<byte>`, стек `NbtFrame`), `ModifiedUtf8`, networked-root. Reader и DOM отложены до Play.
-- 🔨 Configuration: не реализовано — слой пока не обрабатывает пакеты после Login Acknowledged.
+- ✅ NBT: GC-free writer + reader — `NbtWriter`/`NbtReader` (`ref struct`, `Span<byte>`, стек `NbtFrame`), `ModifiedUtf8` (в обе стороны), networked-root. Reader: sequental-core + lookup по имени. DOM отложена.
+- 🔨 Configuration: каркас (ClientInformation → KnownPacks → Feature Flags → Finish → Disconnect) работает; Registry Data (S→C 0x07) и полные тела реестров — следующая задача через `Verstack.Vanilla`.
 - 🔨 Realm: фаза Play не реализована, слой пуст.

@@ -1,4 +1,7 @@
 <Solution>
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/Verstack.NBT.Benchmark/Verstack.NBT.Benchmark.csproj" />
+    </Folder>
     <Folder Name="/src/">
         <Project Path="src/Verstack.App/Verstack.App.csproj" />
         <Project Path="src/Verstack.Bootstrap/Verstack.Bootstrap.csproj" />

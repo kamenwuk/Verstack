@@ -8,7 +8,7 @@
  |-----------------------------------|-------------------------------------------------------------------------------------------------------|
  | [Архитектура](architecture.md)    | Слои, зоны ответственности, граф зависимостей, ECS-миры и проектные решения.                          |
  | [Network](network/index.md)       | Пассивный насос байт: `TcpNetworkService`, `NetworkChannel`, фрейминг, развязка потоков через очереди. |
- | [NBT](nbt/index.md)               | NBT writer: `NbtWriter` (ref struct, `Span<byte>`), modified UTF-8, networked-root.                   |
+ | [NBT](nbt/index.md)               | NBT writer+reader: `NbtWriter`/`NbtReader` (ref struct, `Span<byte>`), modified UTF-8, networked-root. |
  | [Gateway](gateway/index.md)       | Входной слой: Handshake, Status, Login, Configuration. Бандлы, конвейер, гостевой скрининг.           |
  | [Global](global/index.md)         | Глобальный мир: MOTD, кэш ServerInfo, константы, ServerTime.                                           |
 
