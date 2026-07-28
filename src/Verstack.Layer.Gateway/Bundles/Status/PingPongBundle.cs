@@ -10,10 +10,10 @@ internal sealed class PingPongBundle : PacketBundle
 {
     public override int StepCount => 1;
 
-    public override bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
+    public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
         if (packet.Id != 0x01) // Ping Request
-            return false;
+            return PacketHandleResult.Kick;
 
         Logger.Debug(LogKey.PacketPingPong);
 
@@ -24,6 +24,6 @@ internal sealed class PingPongBundle : PacketBundle
         VarInt.Write(ref pw, 0x01);                       // Pong Response ID
         Numeric.WriteLong(ref pw, timestamp);
         outbound.Send(pw.WrittenSpan);
-        return true;
+        return PacketHandleResult.Accepted;
     }
 }

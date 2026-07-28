@@ -20,10 +20,10 @@ internal sealed class StatusExchangeBundle : PacketBundle
         _serverInfo = world.Aspect<ServerInfoCacheStore>();
     }
 
-    public override bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
+    public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
         if (packet.Id != 0x00) // Status Request
-            return false;
+            return PacketHandleResult.Kick;
 
         Logger.Debug(LogKey.PacketStatusExchange);
 
@@ -35,6 +35,6 @@ internal sealed class StatusExchangeBundle : PacketBundle
         json.CopyTo(pw.GetSpan(json.Length));
         pw.Advance(json.Length);
         outbound.Send(pw.WrittenSpan);
-        return true;
+        return PacketHandleResult.Accepted;
     }
 }

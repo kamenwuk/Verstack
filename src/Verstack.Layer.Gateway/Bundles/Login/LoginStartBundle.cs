@@ -30,10 +30,10 @@ internal sealed class LoginStartBundle : PacketBundle
         _cache = world.Aspect<GatewayCacheStore>();
     }
 
-    public override bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
+    public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
         if (packet.Id != 0x00) // Login Start
-            return false;
+            return PacketHandleResult.Kick;
 
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
         string name = Utf8String.Read(ref reader);
@@ -62,6 +62,6 @@ internal sealed class LoginStartBundle : PacketBundle
         VarInt.Write(ref pw, 0);                          // Game Profile.Properties count
         Uuid.Write(ref pw, Guid.NewGuid());               // Session ID (поле 776)
         outbound.Send(pw.WrittenSpan);
-        return true;
+        return PacketHandleResult.Accepted;
     }
 }

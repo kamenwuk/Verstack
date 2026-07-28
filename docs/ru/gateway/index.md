@@ -10,7 +10,7 @@ Gateway — входной слой сервера, GATEWAY-мир в ECS. Об�
 
 - `ProtoPool<NetworkSession> Sessions` — сессия игрока: protocolVersion, IP, serverAddress, serverPort (struct).
 - `ProtoPool<PacketFlowState> FlowStates` — где сущность в конвейере бандлов (`BundleIndex`/`StepIndex`).
-- `ProtoPool<UserProfile> UserProfiles` — профиль игрока, заполняется в Login: `Uuid` + `Username`. Хранится для следующих фаз (Configuration/Play).
+- `ProtoPool<UserProfile> UserProfiles` — профиль игрока, заполняется поэтапно: `Uuid` + `Username` в Login, `Locale` — в Configuration из Client Information. Хранится для следующих фаз (Play).
 
 Помимо пулов, аспект держит side-данные: два словаря `entity ↔ NetworkChannel`. Прямой (`int → NetworkChannel`) нужен системам, чтобы по сущности достать канал. Обратный (`NetworkChannel → int`) — только для обработки дисконнекта: по мёртвому каналу найти сущность и удалить её из мира. `NetworkChannel` — sealed class с `PipeReader`/`PipeWriter`, в `struct`-компонент его не положить, поэтому связь хранится в аспекте, а не в пуле.
 
@@ -24,11 +24,13 @@ Gateway — входной слой сервера, GATEWAY-мир в ECS. Об�
 
 `PromoteToSession` создаёт сущность: `Sessions.NewEntity` возвращает `ref` на слот, туда пишется `NetworkSession` с данными из handshake, добавляется `PacketFlowState` с заданным `BundleIndex`, регистрируется связь в `GatewayCacheStore`. Дальше канал обрабатывает `PacketDispatchSystem`.
 
-**`PacketDispatchSystem : IProtoRunSystem`** — бандловая фаза. Для каждой сущности в `Sessions` берёт канал и `FlowState`, арендует два буфера из `ArrayPool` на тик и строит `PacketOutbound`. Вычитывает `IncomingPackets` и гонит каждый через `GatewayPacketPipeline.TryProcessPacket`. Ответ бандла копится в framing-буфере `PacketOutbound` и флашится в канал одним куском после опустошения очереди. Если бандл вернул `false` или если `BundleIndex` вышел за пределы конвейера (все фазы пройдены) — канал отключается: сначала flush, потом disconnect, чтобы send-воркер всегда писал в живой `PipeWriter`.
+**`PacketDispatchSystem : IProtoRunSystem`** — бандловая фаза. Для каждой сущности в `Sessions` берёт канал и `FlowState`, арендует два буфера из `ArrayPool` на тик и строит `PacketOutbound`. Вычитывает `IncomingPackets` и гонит каждый через `GatewayPacketPipeline.TryProcessPacket`. Ответ бандла копится в framing-буфере `PacketOutbound` и флашится в канал одним куском после опустошения очереди. Если бандл вернул кик (`PacketHandleResult.Kick`) или если `BundleIndex` вышел за пределы конвейера (все фазы пройдены) — канал отключается: сначала flush, потом disconnect, чтобы send-воркер всегда писал в живой `PipeWriter`. Пакеты с результатом `Ignored` проглатываются конвейером без продвижения и без кика.
 
 ## Конвейер бандлов
 
 **`GatewayPacketPipeline : IProtoInitService`** — сервис-обёртка над `PacketPipeline`, инжектится `[DI]` в `PacketDispatchSystem`. `Init` собирает упорядоченный массив бандлов; `TryProcessPacket(entity, packet, ref outbound, ref state)` делегирует текущему бандлу по `state.BundleIndex`. `BundleCount` отдаёт длину массива — диспетчер по нему определяет пройденный конвейер.
+
+Каждый бандл возвращает `PacketHandleResult`: `Accepted` (шаг пройден, конвейер двигает `StepIndex`/`BundleIndex`), `Ignored` (пакет проглочен без продвижения — для посторонних, но легитимных в фазе пакетов, напр. `minecraft:brand` в Configuration) или `Kick` (невалидный пакет, отключение). Конвейер `TryProcessPacket` наружу отдаёт `bool`: `true` — продолжать (`Accepted`/`Ignored`), `false` — кик.
 
 Конвейер (Status и Login оба на сущности, различаются стартовым `BundleIndex`):
 
@@ -37,15 +39,28 @@ Gateway — входной слой сервера, GATEWAY-мир в ECS. Об�
 | 0 | `StatusExchangeBundle` | Status Request (0x00) | Status Response (JSON из `ServerInfoCacheStore`) | 1 |
 | 1 | `PingPongBundle` | Ping Request (0x01) | Pong Response (эхо long timestamp) | 2 |
 | 2 | `LoginStartBundle` | Login Start (0x00) | Set Compression (0x03) + Login Success (0x02) | 3 |
-| 3 | `LoginAcknowledgedBundle` | Login Acknowledged (0x03) | — | за пределы → disconnect |
+| 3 | `LoginAcknowledgedBundle` | Login Acknowledged (0x03) | — | 4 |
+| 4 | `ClientInformationBundle` | Client Information (0x00) | Known Packs (0x0E): `minecraft:core@26.2` | 5 |
+| 5 | `KnownPacksBundle` | Known Packs response (0x07) | Feature Flags (0x0C) + Finish Configuration (0x03) | 6 |
+| 6 | `ConfigurationFinishBundle` | Acknowledge Finish (0x03) | Disconnect (0x02, JSON reason) | за пределы → disconnect |
 
-Status стартует с 0, Login — с 2; оба после `PromoteToSession` крутятся в `PacketDispatchSystem`. Каждый бандл stateless; per-connection состояние лежит в ECS-компонентах на сущности (`NetworkSession`, `PacketFlowState`, `UserProfile`), а бандл читает/пишет их через `ProtoEntity`, который получает.
+Status стартует с 0, Login — с 2; Configuration продолжается с 4 после Login Acknowledged. Все после `PromoteToSession` крутятся в `PacketDispatchSystem`. Каждый бандл stateless; per-connection состояние лежит в ECS-компонентах на сущности (`NetworkSession`, `PacketFlowState`, `UserProfile`), а бандл читает/пишет их через `ProtoEntity`, который получает.
 
 ### Offline-флоу Login
 
 `LoginStartBundle` читает `Name` и клиентский `Player UUID` (последний игнорируется — offline-режим генерирует свой). Считает `Uuid.GenerateOfflinePlayer(name)`, пишет `UserProfile` на сущность через `GetOrAdd`, затем отправляет `Set Compression` (несжатый — compression на канале ещё не включена), потом `EnableCompression(threshold)` и затем `Login Success` (уже в compressed framing). `Login Success` несёт, по протоколу 776: `UUID` игрока, `Username`, пустой массив `Properties` и `Session ID` UUID (свежий `Guid.NewGuid()`).
 
-`LoginAcknowledgedBundle` подтверждает получение Login Success. После него `BundleIndex` выходит за пределы конвейера и `PacketDispatchSystem` закрывает канал — Configuration/Play пока не реализованы.
+`LoginAcknowledgedBundle` подтверждает получение Login Success. После него клиент переходит в состояние Configuration, и конвейер продолжается бандлом `ClientInformationBundle` — канал больше не закрывается на этом шаге.
+
+### Configuration flow
+
+Configuration — фаза после Login Acknowledged, доводит клиента до готовности к Play. Реализована тремя реактивными бандлами (как Status/Login: ждём триггерный пакет клиента → отвечаем серверным):
+
+- `ClientInformationBundle` (0x00 → 0x0E). Читает `locale` из Client Information и сохраняет его в `UserProfile` (понадобится в Play). Отправляет S→C Known Packs с одним паком `minecraft:core@26.2` — сервер блокирует Configuration до получения ответа клиента.
+- `KnownPacksBundle` (0x07 → 0x0C + 0x03). Читает подмножество паков, известных клиенту, затем отправляет Feature Flags (`["minecraft:vanilla"]`) и Finish Configuration.
+- `ConfigurationFinishBundle` (0x03 → 0x02). На Acknowledge Finish Configuration отправляет Disconnect с JSON-reason и закрывает канал. Play пока не реализован (REALM пуст).
+
+Посторонние пакеты, которые клиент шлёт проактивно в Configuration (напр. `minecraft:brand`, C→S 0x02), возвращаются бандлами как `Ignored` — конвейер проглатывает их без кика и без продвижения. Registry Data (S→C 0x07) пока не отправляется: пакет требует NBT, а `Verstack.NBT` пуст. Это ограничение отмечено `TODO` в `KnownPacksBundle`.
 
 ## Handler
 
@@ -53,5 +68,6 @@ Status стартует с 0, Login — с 2; оба после `PromoteToSessio
 
 ## Текущие ограничения
 
-- Configuration не реализован: слой пока не обрабатывает пакеты после Login Acknowledged, поэтому канал закрывается при завершении фазы.
-- Размеры scratch-буферов `ArrayPool` в `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 КБ`, `PAYLOAD_BUFFER_SIZE = 4 КБ`) покрывают Status/Login с запасом, но маловаты для чанков фазы Play — там понадобится динамический размер или flush-на-пакет.
+- Configuration-фаза реализована без Registry Data: пакет требует NBT, а `Verstack.NBT` пока пуст. Каркас доводит клиента до Disconnect, но чистый ванильный клиент может не дойти до Acknowledge Finish Configuration — на этом шаге он валидирует registry/tag-данные (кэш MC-249007 помогает только при повторном входе в том же клиентском процессе). Полная фаза требует реализации `Verstack.NBT`.
+- После Configuration канал закрывается информационным Disconnect: Play не реализован (REALM пуст).
+- Размеры scratch-буферов `ArrayPool` в `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 КБ`, `PAYLOAD_BUFFER_SIZE = 4 КБ`) покрывают Status/Login/Configuration без Registry Data с запасом, но маловаты для чанков фазы Play и Registry Data — там понадобится динамический размер или flush-на-пакет.

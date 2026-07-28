@@ -25,6 +25,10 @@ public abstract class PacketBundle
     /// </summary>
     /// <param name="stepIndex">Текущий шаг (0..StepCount-1).</param>
     /// <param name="entity">Сущность подключения (NetworkSession и др.).</param>
-    /// <returns>True — шаг пройден. False — кик.</returns>
-    public abstract bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound);
+    /// <returns>
+    /// <see cref="PacketHandleResult.Accepted"/> — шаг пройден, конвейер двигается.
+    /// <see cref="PacketHandleResult.Ignored"/> — пакет проглочен без продвижения (посторонний, но легитимный).
+    /// <see cref="PacketHandleResult.Kick"/> — пакет невалиден, клиент отключается.
+    /// </returns>
+    public abstract PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound);
 }

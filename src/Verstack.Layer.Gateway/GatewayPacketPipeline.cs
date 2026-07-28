@@ -21,7 +21,10 @@ internal sealed class GatewayPacketPipeline : IProtoInitService
             new StatusExchangeBundle(),
             new PingPongBundle(),
             new LoginStartBundle(),          // ← индекс 2
-            new LoginAcknowledgedBundle()
+            new LoginAcknowledgedBundle(),   // ← индекс 3
+            new ClientInformationBundle(),   // ← индекс 4 (Configuration)
+            new KnownPacksBundle(),          // ← индекс 5
+            new ConfigurationFinishBundle()  // ← индекс 6
         ]);
     }
     

@@ -29,7 +29,11 @@ public static class LogLocale
         { LogKey.PacketStatusExchange, "Status Request -> Status Response (JSON/MOTD) записан в буфер." },
         { LogKey.PacketPingPong, "Ping Request -> Pong Response (эхо Timestamp) записан в буфер." },
         { LogKey.PacketLoginStart, "Login Start ({0}) -> Login Success записан в буфер (offline UUID сгенерирован)." },
-        { LogKey.PacketLoginAcknowledged, "Login Acknowledged получен от {0} — фаза Login завершена." }
+        { LogKey.PacketLoginAcknowledged, "Login Acknowledged получен от {0} — фаза Login завершена." },
+
+        { LogKey.PacketClientInformation, "Client Information (locale={0}) -> Known Packs записан в буфер." },
+        { LogKey.PacketKnownPacks, "Known Packs response ({0} пак(ов)) -> Feature Flags + Finish Configuration записаны в буфер." },
+        { LogKey.PacketConfigurationFinish, "Configuration завершена для {0} -> Disconnect (Play не реализован) записан в буфер." }
     };
 
     /// <summary>

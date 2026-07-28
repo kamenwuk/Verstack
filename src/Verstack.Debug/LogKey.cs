@@ -26,5 +26,9 @@ public enum LogKey
     PacketStatusExchange,
     PacketPingPong,
     PacketLoginStart,
-    PacketLoginAcknowledged
+    PacketLoginAcknowledged,
+    
+    PacketClientInformation,
+    PacketKnownPacks,
+    PacketConfigurationFinish
 }

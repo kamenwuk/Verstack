@@ -37,14 +37,19 @@ namespace Verstack.Network.Packet
                 return false;
 
             var bundle = _bundles[state.BundleIndex];
-            if (!bundle.TryProcess(state.StepIndex, entity, packet, ref outbound))
+            var result = bundle.TryProcess(state.StepIndex, entity, packet, ref outbound);
+            if (result == PacketHandleResult.Kick)
                 return false;
 
-            state.StepIndex++;
-            if (state.StepIndex >= bundle.StepCount)
+            // Ignored: пакет проглочен, состояние конвейера не меняется.
+            if (result == PacketHandleResult.Accepted)
             {
-                state.BundleIndex++;
-                state.StepIndex = 0;
+                state.StepIndex++;
+                if (state.StepIndex >= bundle.StepCount)
+                {
+                    state.BundleIndex++;
+                    state.StepIndex = 0;
+                }
             }
             return true;
         }

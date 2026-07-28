@@ -18,13 +18,13 @@ internal sealed class LoginAcknowledgedBundle : PacketBundle
         _cache = world.Aspect<GatewayCacheStore>();
     }
 
-    public override bool TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
+    public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
         if (packet.Id != 0x03) // Login Acknowledged
-            return false;
+            return PacketHandleResult.Kick;
 
         string name = _cache.UserProfiles.Get(entity).Username;
         Logger.Debug(LogKey.PacketLoginAcknowledged, name);
-        return true;
+        return PacketHandleResult.Accepted;
     }
 }
