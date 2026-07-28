@@ -43,7 +43,7 @@ src/
 ├── Verstack.Layer.Global/   GLOBAL-мир: MOTD, ServerInfo, константы.
 ├── Verstack.Layer.Gateway/  GATEWAY-мир: Handshake, Status, Login, Configuration.
 ├── Verstack.Layer.Realm/    REALM-мир: фаза Play (запланирован).
-└── Verstack.NBT/            NBT (запланирован).
+└── Verstack.NBT/            NBT writer (NbtWriter ref struct, modified UTF-8, networked-root).
 tools/
 └── Verstack.Probe/          Нагрузочный имитатор N клиентов.
 ```

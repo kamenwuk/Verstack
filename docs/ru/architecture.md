@@ -13,7 +13,7 @@ src/
 ├── Verstack.Core/                     ← базовые абстракции: VerstackFeature, WorldScopes, ServerTime
 ├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n-словарь)
 ├── Verstack.ECS/                      ← завендоренный Leopotam.EcsProto + QoL. 0 NuGet
-├── Verstack.NBT/                      ← NBT (запланирован, пока пуст)
+├── Verstack.NBT/                      ← NBT writer: NbtWriter (ref struct), ModifiedUtf8, networked-root
 ├── Verstack.Network/                  ← TCP/сокеты + фрейминг. Пассивный насос байт
 ├── Verstack.Layer.Global/             ← GLOBAL-мир: MOTD, ServerInfo, константы
 ├── Verstack.Layer.Gateway/            ← GATEWAY-мир: Handshake, Status, Login, Configuration
@@ -46,7 +46,7 @@ tools/
 
 Зависимости линейные, направлены вниз — к фундаменту. `App` — корень композиции, единственная исполняемая сборка. `Bootstrap` собирает из Feature-ов три ECS-мира и сервисы, крутит главный тик. `Layer.Realm → Layer.Gateway → Layer.Global → Core` — пирамида слоёв: верхний слой знает нижние, но не наоборот.
 
-`Verstack.ECS` и `Verstack.Debug` — листья: `ECS` зависит только от BCL, `Debug` — тоже. `Verstack.NBT` пока пуст, зависимости не имеет. `Verstack.Network` зависит от `ECS` (типы `RawPacket`/`PacketBundle` используют `ProtoEntity`) и `Debug` (логирование).
+`Verstack.ECS` и `Verstack.Debug` — листья: `ECS` зависит только от BCL, `Debug` — тоже. `Verstack.NBT` — тоже лист, зависит только от BCL. `Verstack.Network` зависит от `ECS` (типы `RawPacket`/`PacketBundle` используют `ProtoEntity`) и `Debug` (логирование).
 
 | Слой             | Может ссылаться на                                  | НЕ может ссылаться на                       |
 |------------------|-----------------------------------------------------|---------------------------------------------|
@@ -121,9 +121,15 @@ REALM-мир, фаза Play. Зарезервирован, `RealmFeature` пок
 
 Композиция. `ServerComposer` принимает три Feature'а, собирает из их аспектов три `ProtoWorld` (через `ProtoModules` + `AutoInjectModule`), регистрирует сервисы и связывает миры по видимости. `EntryPoint` — жизненный цикл: `Start(port)` инициализирует сервисы и миры, запускает TCP-слушатель и главный тик; `Stop()` будит тик через `CancellationToken`, останавливает сеть и destroys миры.
 
-### Verstack.Core / Debug / ECS / NBT
+### Verstack.NBT
 
-`Core` — базовые абстракции: `VerstackFeature` (контракт Feature'а), `WorldScopes` (имена миров), `ServerTime`. `Debug` — `Logger` с i18n через `LogKey` + `LogLocale`. `ECS` — завендоренный `Leopotam.EcsProto` (+QoL), фундамент под слоями. `NBT` — запланирован.
+NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free запись прямо в `Span<byte>` через стек `NbtFrame`), `ModifiedUtf8` (Java modified-UTF-8), networked-root по умолчанию. Writer-only — reader отложен до Play. BCL-лист, 0 зависимостей.
+
+→ [NBT](nbt/index.md)
+
+### Verstack.Core / Debug / ECS
+
+`Core` — базовые абстракции: `VerstackFeature` (контракт Feature'а), `WorldScopes` (имена миров), `ServerTime`. `Debug` — `Logger` с i18n через `LogKey` + `LogLocale`. `ECS` — завендоренный `Leopotam.EcsProto` (+QoL), фундамент под слоями.
 
 `Verstack.ECS` — единственный сторонний код в проекте, лицензирован под **MIT-ZARYA** ([LICENSE.md](../../src/Verstack.ECS/LICENSE.md)). MIT-ZARYA разрешает использование и распространение с одним условием: если ПО локализовано на несколько языков, обязательна локализация на Русский язык, не менее полная, чем на любом другом. Verstack этому соответствует — `docs/ru/` и `README.ru.md` зеркальны английским. Файл лицензии включается в выходные артефакты сборки `Verstack.ECS`.
 
@@ -137,5 +143,6 @@ REALM-мир, фаза Play. Зарезервирован, `RealmFeature` пок
 - ✅ Status: полный пинг-обмен (Request → JSON Response, Ping → Pong) через конвейер бандлов, на сущности.
 - ✅ Login: offline-флоу — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 от `"OfflinePlayer:<name>"`, поле Session ID протокола 776. После завершения фазы канал закрывается (REALM/Configuration пока не реализованы).
 - ✅ Compression: zlib (RFC 1950) фрейминг в обе стороны, per-channel threshold (256, стандарт ванили), GC-free холодный путь. Включается после Set Compression.
+- ✅ NBT: GC-free writer — `NbtWriter` (`ref struct`, `Span<byte>`, стек `NbtFrame`), `ModifiedUtf8`, networked-root. Reader и DOM отложены до Play.
 - 🔨 Configuration: не реализовано — слой пока не обрабатывает пакеты после Login Acknowledged.
 - 🔨 Realm: фаза Play не реализована, слой пуст.

@@ -13,7 +13,7 @@ src/
 ├── Verstack.Core/                     ← base abstractions: VerstackFeature, WorldScopes, ServerTime
 ├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n dictionary)
 ├── Verstack.ECS/                      ← vendored Leopotam.EcsProto + QoL. 0 NuGet
-├── Verstack.NBT/                      ← NBT (planned, empty for now)
+├── Verstack.NBT/                      ← NBT writer: NbtWriter (ref struct), ModifiedUtf8, networked root
 ├── Verstack.Network/                  ← TCP/sockets + framing. Passive byte pump
 ├── Verstack.Layer.Global/             ← GLOBAL world: MOTD, ServerInfo, constants
 ├── Verstack.Layer.Gateway/            ← GATEWAY world: Handshake, Status, Login, Configuration
@@ -46,7 +46,7 @@ tools/
 
 Dependencies are linear and point downward, toward the foundation. `App` is the composition root and the only executable assembly. `Bootstrap` assembles three ECS worlds out of Features and services and runs the main tick. `Layer.Realm → Layer.Gateway → Layer.Global → Core` is the layer pyramid: an upper layer knows the lower ones, never the reverse.
 
-`Verstack.ECS` and `Verstack.Debug` are leaves: `ECS` depends only on BCL, `Debug` too. `Verstack.NBT` is empty for now and has no dependencies. `Verstack.Network` depends on `ECS` (the `RawPacket`/`PacketBundle` types use `ProtoEntity`) and `Debug` (logging).
+`Verstack.ECS` and `Verstack.Debug` are leaves: `ECS` depends only on BCL, `Debug` too. `Verstack.NBT` is also a leaf, depending only on BCL. `Verstack.Network` depends on `ECS` (the `RawPacket`/`PacketBundle` types use `ProtoEntity`) and `Debug` (logging).
 
 | Layer             | May reference                                        | May NOT reference                           |
 |-------------------|------------------------------------------------------|---------------------------------------------|
@@ -121,9 +121,15 @@ The REALM world, the Play phase. Reserved; `RealmFeature` is empty for now: `Ini
 
 Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s out of their aspects (via `ProtoModules` + `AutoInjectModule`), registers services, and wires worlds by visibility. `EntryPoint` is the lifecycle: `Start(port)` initializes services and worlds, starts the TCP listener and the main tick; `Stop()` wakes the tick via a `CancellationToken`, stops the network, and destroys the worlds.
 
-### Verstack.Core / Debug / ECS / NBT
+### Verstack.NBT
 
-`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the vendored `Leopotam.EcsProto` (+QoL), the foundation under the layers. `NBT` — planned.
+NBT writer (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free writes straight into `Span<byte>` through an `NbtFrame` stack), `ModifiedUtf8` (Java modified UTF-8), networked root by default. Writer-only — the reader is deferred to Play. A BCL leaf, 0 dependencies.
+
+→ [NBT](nbt/index.md)
+
+### Verstack.Core / Debug / ECS
+
+`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the vendored `Leopotam.EcsProto` (+QoL), the foundation under the layers.
 
 `Verstack.ECS` is the only third-party code in the project and is licensed under **MIT-ZARYA** ([LICENSE.md](../../src/Verstack.ECS/LICENSE.md)). MIT-ZARYA permits use and redistribution with one condition: if the software is localized into multiple languages, a Russian localization is mandatory and must be no less complete than any other. Verstack meets this — `docs/ru/` and `README.ru.md` mirror the English ones. The license file is included in the build output of `Verstack.ECS`.
 
@@ -137,5 +143,6 @@ Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s o
 - ✅ Status: full ping exchange (Request → JSON Response, Ping → Pong) through the bundle conveyor, entity-backed.
 - ✅ Login: offline-mode flow — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 from `"OfflinePlayer:<name>"`, protocol-776 Session ID field. Channel closes on phase completion (REALM/Configuration not implemented yet).
 - ✅ Compression: zlib (RFC 1950) framing in both directions, per-channel threshold (256, vanilla standard), GC-free cold path. Enabled after Set Compression.
+- ✅ NBT: GC-free writer — `NbtWriter` (`ref struct`, `Span<byte>`, `NbtFrame` stack), `ModifiedUtf8`, networked root. Reader and DOM deferred to Play.
 - 🔨 Configuration: not implemented — the layer does not yet handle packets after Login Acknowledged.
 - 🔨 Realm: the Play phase is not implemented, the layer is empty.

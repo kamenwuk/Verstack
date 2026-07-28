@@ -60,7 +60,7 @@ Configuration — фаза после Login Acknowledged, доводит кли�
 - `KnownPacksBundle` (0x07 → 0x0C + 0x03). Читает подмножество паков, известных клиенту, затем отправляет Feature Flags (`["minecraft:vanilla"]`) и Finish Configuration.
 - `ConfigurationFinishBundle` (0x03 → 0x02). На Acknowledge Finish Configuration отправляет Disconnect с JSON-reason и закрывает канал. Play пока не реализован (REALM пуст).
 
-Посторонние пакеты, которые клиент шлёт проактивно в Configuration (напр. `minecraft:brand`, C→S 0x02), возвращаются бандлами как `Ignored` — конвейер проглатывает их без кика и без продвижения. Registry Data (S→C 0x07) пока не отправляется: пакет требует NBT, а `Verstack.NBT` пуст. Это ограничение отмечено `TODO` в `KnownPacksBundle`.
+Посторонние пакеты, которые клиент шлёт проактивно в Configuration (напр. `minecraft:brand`, C→S 0x02), возвращаются бандлами как `Ignored` — конвейер проглатывает их без кика и без продвижения. Registry Data (S→C 0x07) пока не отправляется: листинг реестров идёт listing-only (тела опускаются), и это отмечено `TODO` в `KnownPacksBundle`. Сам writer уже реализован ([NBT](../nbt/index.md)) — листинг Registry Data с полными телами отдельная задача.
 
 ## Handler
 
@@ -68,6 +68,6 @@ Configuration — фаза после Login Acknowledged, доводит кли�
 
 ## Текущие ограничения
 
-- Configuration-фаза реализована без Registry Data: пакет требует NBT, а `Verstack.NBT` пока пуст. Каркас доводит клиента до Disconnect, но чистый ванильный клиент может не дойти до Acknowledge Finish Configuration — на этом шаге он валидирует registry/tag-данные (кэш MC-249007 помогает только при повторном входе в том же клиентском процессе). Полная фаза требует реализации `Verstack.NBT`.
+- Configuration-фаза реализована без Registry Data: листинг реестров идёт listing-only (тела опускаются). Каркас доводит клиента до Disconnect, но чистый ванильный клиент может не дойти до Acknowledge Finish Configuration — на этом шаге он валидирует registry/tag-данные (кэш MC-249007 помогает только при повторном входе в том же клиентском процессе). `Verstack.NBT` writer уже реализован ([NBT](../nbt/index.md)), полный листинг Registry Data — отдельная задача.
 - После Configuration канал закрывается информационным Disconnect: Play не реализован (REALM пуст).
 - Размеры scratch-буферов `ArrayPool` в `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 КБ`, `PAYLOAD_BUFFER_SIZE = 4 КБ`) покрывают Status/Login/Configuration без Registry Data с запасом, но маловаты для чанков фазы Play и Registry Data — там понадобится динамический размер или flush-на-пакет.

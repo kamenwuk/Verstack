@@ -60,7 +60,7 @@ Configuration is the phase after Login Acknowledged that brings the client to Pl
 - `KnownPacksBundle` (0x07 → 0x0C + 0x03). Reads the subset of packs known to the client, then sends Feature Flags (`["minecraft:vanilla"]`) and Finish Configuration.
 - `ConfigurationFinishBundle` (0x03 → 0x02). On Acknowledge Finish Configuration, sends a Disconnect with a JSON reason and closes the channel. Play is not implemented yet (REALM is empty).
 
-Packets the client sends proactively during Configuration (e.g. `minecraft:brand`, C→S 0x02) are returned by the bundles as `Ignored` — the conveyor swallows them without a kick and without advancement. Registry Data (S→C 0x07) is not sent yet: the packet requires NBT, and `Verstack.NBT` is empty. This limitation is marked with a `TODO` in `KnownPacksBundle`.
+Packets the client sends proactively during Configuration (e.g. `minecraft:brand`, C→S 0x02) are returned by the bundles as `Ignored` — the conveyor swallows them without a kick and without advancement. Registry Data (S→C 0x07) is not sent yet: registry listing goes listing-only (bodies are omitted), and this is marked with a `TODO` in `KnownPacksBundle`. The writer itself is already implemented ([NBT](../nbt/index.md)) — listing Registry Data with full bodies is a separate task.
 
 ## Handler
 
@@ -68,6 +68,6 @@ Packets the client sends proactively during Configuration (e.g. `minecraft:brand
 
 ## Current limitations
 
-- The Configuration phase is implemented without Registry Data: the packet requires NBT, and `Verstack.NBT` is still empty. The skeleton brings the client to Disconnect, but a clean vanilla client may not reach Acknowledge Finish Configuration — at that step it validates registry/tag data (the MC-249007 cache helps only on re-entry within the same client process). A complete phase requires implementing `Verstack.NBT`.
+- The Configuration phase is implemented without Registry Data: registry listing goes listing-only (bodies are omitted). The skeleton brings the client to Disconnect, but a clean vanilla client may not reach Acknowledge Finish Configuration — at that step it validates registry/tag data (the MC-249007 cache helps only on re-entry within the same client process). The `Verstack.NBT` writer is already implemented ([NBT](../nbt/index.md)); a full Registry Data listing is a separate task.
 - After Configuration the channel is closed with an informational Disconnect: Play is not implemented (REALM is empty).
 - The `ArrayPool` scratch sizes in `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 KB`, `PAYLOAD_BUFFER_SIZE = 4 KB`) cover Status/Login/Configuration without Registry Data with headroom, but are too small for Play-phase chunks and Registry Data — a dynamic size or per-packet flush will be needed there.
