@@ -1,6 +1,7 @@
 <Solution>
     <Folder Name="/benchmarks/">
         <Project Path="benchmarks/Verstack.NBT.Benchmark/Verstack.NBT.Benchmark.csproj" />
+        <Project Path="benchmarks/Verstack.Network.Benchmark/Verstack.Network.Benchmark.csproj" />
     </Folder>
     <Folder Name="/src/">
         <Project Path="src/Verstack.App/Verstack.App.csproj" />
@@ -15,7 +16,9 @@
         <Project Path="src/Verstack.Network/Verstack.Network.csproj" />
     </Folder>
     <Folder Name="/tests/">
+        <Project Path="tests/Verstack.Layer.Gateway.Tests/Verstack.Layer.Gateway.Tests.csproj" />
         <Project Path="tests/Verstack.NBT.Tests/Verstack.NBT.Tests.csproj" />
+        <Project Path="tests/Verstack.Network.Tests/Verstack.Network.Tests.csproj" />
     </Folder>
     <Folder Name="/tools/">
         <Project Path="tools/Verstack.Probe/Verstack.Probe.csproj" />

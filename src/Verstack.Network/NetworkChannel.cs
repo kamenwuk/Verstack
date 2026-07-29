@@ -16,7 +16,7 @@ namespace Verstack.Network;
 ///     контракт <c>System.IO.Pipelines</c> требует single writer, ECS не трогает Writer напрямую.</item>
 /// </list>
 /// </summary>
-public sealed class NetworkChannel
+public class NetworkChannel
 {
     public readonly Socket Socket;
     public readonly PipeReader Reader;

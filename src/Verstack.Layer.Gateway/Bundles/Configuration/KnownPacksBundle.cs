@@ -1,17 +1,17 @@
 using System.Buffers;
 using Leopotam.EcsProto;
 using Verstack.Debug;
+using Verstack.Layer.Global;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
 /// <summary>
-/// Шаг Configuration: Known Packs response (0x07) → Feature Flags (0x0C) + Finish Configuration (0x03).
+/// Шаг Configuration: Known Packs response (0x07) → Registry Data (0x07) → Feature Flags (0x0C) + Finish (0x03).
 /// Сервер блокирует Configuration до получения serverbound Known Packs (подмножество паков, известных клиенту);
-/// читаем только их количество, затем отправляем Feature Flags (<c>["minecraft:vanilla"]</c>) и Finish Configuration.
-///
-/// TODO: между Known Packs и Feature Flags сюда встанет Registry Data (S→C 0x07) — требует Verstack.NBT.
+/// читаем только их количество, затем отправляем Registry Data (listing-only, пустые synced-реестры 26.2),
+/// Feature Flags (<c>["minecraft:vanilla"]</c>) и Finish Configuration.
 /// </summary>
 internal sealed class KnownPacksBundle : PacketBundle
 {
@@ -29,6 +29,31 @@ internal sealed class KnownPacksBundle : PacketBundle
         int knownCount = VarInt.Read(ref reader);
 
         Logger.Debug(LogKey.PacketKnownPacks, knownCount);
+
+        // S→C Registry Data (0x07): listing-only — по одному packet на каждый synced-реестр 26.2.
+        // 13 variant-реестров требуют ≥1 entry (клиент 26.2 валидирует non-empty): посылаем их
+        // canonical entry-ids БЕЗ тел — клиент достаёт тела из bundled-datapack
+        // (entry = Identifier + TAG_End 0x00 = Optional<Tag> empty). Остальные 16 уходят пустыми (count=0).
+        // Wire-формат 26.2: framed stream-codec, БЕЗ корневого Compound (это формат ≤1.20.x).
+        byte[][] syncedIds = VanillaSyncedRegistries.SyncedRegistryIds;
+        byte[][][] entryIds = VanillaRegistryEntries.EntryIds;
+        for (int i = 0; i < syncedIds.Length; i++)
+        {
+            byte[] registryId = syncedIds[i];
+            byte[][] entries = entryIds[i];
+
+            var rdw = new SpanWriter(outbound.PayloadBuffer);
+            VarInt.Write(ref rdw, 0x07);                 // Clientbound Registry Data ID
+            Utf8String.Write(ref rdw, registryId);       // Identifier (имя реестра)
+            VarInt.Write(ref rdw, entries.Length);       // entries count (0 для listing-only)
+            foreach (byte[] entryId in entries)
+            {
+                Utf8String.Write(ref rdw, entryId);      // Identifier (entry name)
+                rdw.GetSpan(1)[0] = 0;                   // Optional<Tag> = empty → TAG_End (0x00)
+                rdw.Advance(1);                          //   клиент берёт тело из bundled-datapack
+            }
+            outbound.Send(rdw.WrittenSpan);
+        }
 
         // S→C Feature Flags (0x0C): ["minecraft:vanilla"].
         var ffw = new SpanWriter(outbound.PayloadBuffer);

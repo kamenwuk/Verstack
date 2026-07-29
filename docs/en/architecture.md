@@ -144,5 +144,5 @@ NBT writer + reader (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free write
 - ✅ Login: offline-mode flow — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 from `"OfflinePlayer:<name>"`, protocol-776 Session ID field. Channel closes on phase completion (REALM/Configuration not implemented yet).
 - ✅ Compression: zlib (RFC 1950) framing in both directions, per-channel threshold (256, vanilla standard), GC-free cold path. Enabled after Set Compression.
 - ✅ NBT: GC-free writer + reader — `NbtWriter`/`NbtReader` (`ref struct`, `Span<byte>`, `NbtFrame` stack), `ModifiedUtf8` (both directions), networked root. Reader: sequental-core + lookup by name. The DOM is deferred.
-- 🔨 Configuration: the skeleton (ClientInformation → KnownPacks → Feature Flags → Finish → Disconnect) works; Registry Data (S→C 0x07) and full registry bodies are the next task via `Verstack.Vanilla`.
+- 🔨 Configuration: the skeleton (ClientInformation → KnownPacks → Registry Data × 29 → Feature Flags → Finish → Disconnect) works; Registry Data (S→C 0x07) is sent listing-only (29 synced registries of 26.2), accepted by the 26.2 client. Update Tags (S→C 0x08) is still missing — the client crashes on tag validation; this is the next task.
 - 🔨 Realm: the Play phase is not implemented, the layer is empty.

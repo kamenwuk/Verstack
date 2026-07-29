@@ -38,6 +38,18 @@ A static class with the server's base constants:
 
 `Update()` is called at the end of every tick in `EntryPoint.RunMainLoop`. It is not an ECS component but a plain service class — because time is shared across all worlds and is not tied to an entity.
 
+## Vanilla registries 26.2
+
+Layer.Global holds the canonical lists of Minecraft 26.2 synced registries for Configuration: `VanillaSyncedRegistries` and `VanillaRegistryEntries`. These are static data — plain classes with `byte[][]`/`byte[][][]`, initialized once on first access.
+
+`VanillaSyncedRegistries.SyncedRegistryIds` — 29 synced-registry identifiers as ready UTF-8 bytes (no VarInt prefix). The source is the `RegistryDataLoader.SYNCHRONIZED_REGISTRIES` bytecode, extracted statically via `javap`. The array order matches the order in which Registry Data packets are sent during Configuration.
+
+`VanillaRegistryEntries.EntryIds` — entry-ids for the 13 mandatory registries, index-aligned with `SyncedRegistryIds`. All variant registries and `painting_variant` require ≥1 entry (the 26.2 client validates non-empty); the other 16 are represented by an empty array (count=0 in listing). The source is the client-jar bundled datapack; order within a registry is alphabetical.
+
+Counter-intuitive: the Java field `Registries.BIOME` expands to `minecraft:worldgen/biome` (with the `worldgen/` prefix), not `minecraft:biome` — the only one of the 29 with a prefix. Hence the list is derived from bytecode, not field names.
+
+GC-free: the Configuration hot path copies the bytes into a `SpanWriter` without allocations. The sending flow (29 × Registry Data, listing-only 26.2 wire format) is described in [Gateway](../gateway/index.md).
+
 ## Relation to other layers
 
 GLOBAL is visible from Gateway and Realm via the named world `[DI(WorldScopes.GLOBAL)]`. The Gateway → Global contact point is `GatewayIntakeHandler`, which in `Init` fetches `ServerInfoCacheStore` from the GLOBAL world via `world.Aspect<ServerInfoCacheStore>()` and uses its `GetStatusJson()` on a Status Request. Realm will reach Global the same way — once Play-phase systems appear.

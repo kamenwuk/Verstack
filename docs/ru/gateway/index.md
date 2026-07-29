@@ -41,7 +41,7 @@ Gateway — входной слой сервера, GATEWAY-мир в ECS. Об�
 | 2 | `LoginStartBundle` | Login Start (0x00) | Set Compression (0x03) + Login Success (0x02) | 3 |
 | 3 | `LoginAcknowledgedBundle` | Login Acknowledged (0x03) | — | 4 |
 | 4 | `ClientInformationBundle` | Client Information (0x00) | Known Packs (0x0E): `minecraft:core@26.2` | 5 |
-| 5 | `KnownPacksBundle` | Known Packs response (0x07) | Feature Flags (0x0C) + Finish Configuration (0x03) | 6 |
+| 5 | `KnownPacksBundle` | Known Packs response (0x07) | Registry Data (0x07) × 29 → Feature Flags (0x0C) + Finish Configuration (0x03) | 6 |
 | 6 | `ConfigurationFinishBundle` | Acknowledge Finish (0x03) | Disconnect (0x02, JSON reason) | за пределы → disconnect |
 
 Status стартует с 0, Login — с 2; Configuration продолжается с 4 после Login Acknowledged. Все после `PromoteToSession` крутятся в `PacketDispatchSystem`. Каждый бандл stateless; per-connection состояние лежит в ECS-компонентах на сущности (`NetworkSession`, `PacketFlowState`, `UserProfile`), а бандл читает/пишет их через `ProtoEntity`, который получает.
@@ -57,10 +57,16 @@ Status стартует с 0, Login — с 2; Configuration продолжает
 Configuration — фаза после Login Acknowledged, доводит клиента до готовности к Play. Реализована тремя реактивными бандлами (как Status/Login: ждём триггерный пакет клиента → отвечаем серверным):
 
 - `ClientInformationBundle` (0x00 → 0x0E). Читает `locale` из Client Information и сохраняет его в `UserProfile` (понадобится в Play). Отправляет S→C Known Packs с одним паком `minecraft:core@26.2` — сервер блокирует Configuration до получения ответа клиента.
-- `KnownPacksBundle` (0x07 → 0x0C + 0x03). Читает подмножество паков, известных клиенту, затем отправляет Feature Flags (`["minecraft:vanilla"]`) и Finish Configuration.
+- `KnownPacksBundle` (0x07 → 0x07 × 29 → 0x0C + 0x03). Читает подмножество паков, известных клиенту, затем шлёт по одному Registry Data на каждый synced-реестр 26.2 (29 шт., listing-only), после чего отправляет Feature Flags (`["minecraft:vanilla"]`) и Finish Configuration.
 - `ConfigurationFinishBundle` (0x03 → 0x02). На Acknowledge Finish Configuration отправляет Disconnect с JSON-reason и закрывает канал. Play пока не реализован (REALM пуст).
 
-Посторонние пакеты, которые клиент шлёт проактивно в Configuration (напр. `minecraft:brand`, C→S 0x02), возвращаются бандлами как `Ignored` — конвейер проглатывает их без кика и без продвижения. Registry Data (S→C 0x07) пока не отправляется: листинг реестров идёт listing-only (тела опускаются), и это отмечено `TODO` в `KnownPacksBundle`. Сам writer уже реализован ([NBT](../nbt/index.md)) — листинг Registry Data с полными телами отдельная задача.
+### Registry Data (listing-only)
+
+Registry Data (S→C 0x07) отправляется 29 раз — по одному packet на synced-реестр 26.2. Список реестров и обязательные entry-ids хранятся в Layer.Global ([Global](../global/index.md)). Wire-формат 26.2 — framed stream-codec: `[packet-id][Identifier реестра][VarInt count][entries]`, без корневого NBT-Compound (это формат ≤1.20.x). Для 13 обязательных реестров (variant-реестры + `painting_variant`) посылаются canonical entry-ids **без тел** — каждый entry это `Identifier + TAG_End (0x00)`, то есть `Optional<Tag> = empty`; клиент берёт тела из bundled-datapack. Остальные 16 уходят пустыми (`count=0`). Listing-only принят клиентом 26.2 на полевом испытании.
+
+Не хватает Update Tags (S→C 0x08): после загрузки реестров клиент падает в `updateComponents` с `Missing tag ...` — реестры валидируются на полноту тегов. Это следующая задача Configuration. Полные тела реестров (со значениями вместо datapack-lookup) — тоже отдельная будущая задача; [NBT](../nbt/index.md) writer для них уже готов.
+
+Посторонние пакеты, которые клиент шлёт проактивно в Configuration (напр. `minecraft:brand`, C→S 0x02), возвращаются бандлами как `Ignored` — конвейер проглатывает их без кика и без продвижения.
 
 ## Handler
 
@@ -68,6 +74,6 @@ Configuration — фаза после Login Acknowledged, доводит кли�
 
 ## Текущие ограничения
 
-- Configuration-фаза реализована без Registry Data: листинг реестров идёт listing-only (тела опускаются). Каркас доводит клиента до Disconnect, но чистый ванильный клиент может не дойти до Acknowledge Finish Configuration — на этом шаге он валидирует registry/tag-данные (кэш MC-249007 помогает только при повторном входе в том же клиентском процессе). `Verstack.NBT` writer уже реализован ([NBT](../nbt/index.md)), полный листинг Registry Data — отдельная задача.
+- Configuration-фаза отправляет Registry Data (S→C 0x07) listing-only: 29 synced-реестров 26.2, для 13 обязательных — entry-ids без тел. Этого достаточно клиенту 26.2 для загрузки реестров, но не хватает Update Tags (S→C 0x08): после реестров клиент падает в `updateComponents` с `Missing tag ...` — он валидирует полноту тегов (кэш MC-249007 помогает только при повторном входе в том же клиентском процессе). Update Tags — следующая задача Configuration. Полные тела реестров (со значениями вместо datapack-lookup) — тоже отдельная будущая задача; [NBT](../nbt/index.md) writer для них уже готов.
 - После Configuration канал закрывается информационным Disconnect: Play не реализован (REALM пуст).
-- Размеры scratch-буферов `ArrayPool` в `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 КБ`, `PAYLOAD_BUFFER_SIZE = 4 КБ`) покрывают Status/Login/Configuration без Registry Data с запасом, но маловаты для чанков фазы Play и Registry Data — там понадобится динамический размер или flush-на-пакет.
+- Размеры scratch-буферов `ArrayPool` в `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 КБ`, `PAYLOAD_BUFFER_SIZE = 4 КБ`) покрывают Status/Login/Configuration с Registry Data с запасом, но маловаты для чанков фазы Play и для Update Tags — там понадобится динамический размер или flush-на-пакет (Update Tags не влезает в 4 КБ целиком и разбивается по реестрам).

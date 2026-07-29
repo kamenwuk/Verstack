@@ -144,5 +144,5 @@ NBT writer + reader (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free за�
 - ✅ Login: offline-флоу — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 от `"OfflinePlayer:<name>"`, поле Session ID протокола 776. После завершения фазы канал закрывается (REALM/Configuration пока не реализованы).
 - ✅ Compression: zlib (RFC 1950) фрейминг в обе стороны, per-channel threshold (256, стандарт ванили), GC-free холодный путь. Включается после Set Compression.
 - ✅ NBT: GC-free writer + reader — `NbtWriter`/`NbtReader` (`ref struct`, `Span<byte>`, стек `NbtFrame`), `ModifiedUtf8` (в обе стороны), networked-root. Reader: sequental-core + lookup по имени. DOM отложена.
-- 🔨 Configuration: каркас (ClientInformation → KnownPacks → Feature Flags → Finish → Disconnect) работает; Registry Data (S→C 0x07) и полные тела реестров — следующая задача через `Verstack.Vanilla`.
+- 🔨 Configuration: каркас (ClientInformation → KnownPacks → Registry Data × 29 → Feature Flags → Finish → Disconnect) работает; Registry Data (S→C 0x07) отправляется listing-only (29 synced-реестров 26.2), принят клиентом 26.2. Не хватает Update Tags (S→C 0x08) — клиент падает на валидации тегов; это следующая задача.
 - 🔨 Realm: фаза Play не реализована, слой пуст.

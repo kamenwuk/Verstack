@@ -41,7 +41,7 @@ The conveyor, with Status and Login both entity-backed (differing only in the st
 | 2 | `LoginStartBundle` | Login Start (0x00) | Set Compression (0x03) + Login Success (0x02) | 3 |
 | 3 | `LoginAcknowledgedBundle` | Login Acknowledged (0x03) | — | 4 |
 | 4 | `ClientInformationBundle` | Client Information (0x00) | Known Packs (0x0E): `minecraft:core@26.2` | 5 |
-| 5 | `KnownPacksBundle` | Known Packs response (0x07) | Feature Flags (0x0C) + Finish Configuration (0x03) | 6 |
+| 5 | `KnownPacksBundle` | Known Packs response (0x07) | Registry Data (0x07) × 29 → Feature Flags (0x0C) + Finish Configuration (0x03) | 6 |
 | 6 | `ConfigurationFinishBundle` | Acknowledge Finish (0x03) | Disconnect (0x02, JSON reason) | past the end → disconnect |
 
 Status starts at 0, Login starts at 2 — Configuration continues from 4 after Login Acknowledged. All run through `PacketDispatchSystem` once promoted. Each bundle is stateless; per-connection state lives in the ECS components on the entity (`NetworkSession`, `PacketFlowState`, `UserProfile`), and the bundle reads/writes them via the `ProtoEntity` it receives.
@@ -57,10 +57,16 @@ Status starts at 0, Login starts at 2 — Configuration continues from 4 after L
 Configuration is the phase after Login Acknowledged that brings the client to Play readiness. It is implemented as three reactive bundles (same as Status/Login: wait for a client trigger packet, then respond):
 
 - `ClientInformationBundle` (0x00 → 0x0E). Reads `locale` from Client Information and stores it in `UserProfile` (will be needed in Play). Sends S→C Known Packs with one pack, `minecraft:core@26.2` — the server blocks Configuration until it receives the client's response.
-- `KnownPacksBundle` (0x07 → 0x0C + 0x03). Reads the subset of packs known to the client, then sends Feature Flags (`["minecraft:vanilla"]`) and Finish Configuration.
+- `KnownPacksBundle` (0x07 → 0x07 × 29 → 0x0C + 0x03). Reads the subset of packs known to the client, then sends one Registry Data per 26.2 synced registry (29 packets, listing-only), followed by Feature Flags (`["minecraft:vanilla"]`) and Finish Configuration.
 - `ConfigurationFinishBundle` (0x03 → 0x02). On Acknowledge Finish Configuration, sends a Disconnect with a JSON reason and closes the channel. Play is not implemented yet (REALM is empty).
 
-Packets the client sends proactively during Configuration (e.g. `minecraft:brand`, C→S 0x02) are returned by the bundles as `Ignored` — the conveyor swallows them without a kick and without advancement. Registry Data (S→C 0x07) is not sent yet: registry listing goes listing-only (bodies are omitted), and this is marked with a `TODO` in `KnownPacksBundle`. The writer itself is already implemented ([NBT](../nbt/index.md)) — listing Registry Data with full bodies is a separate task.
+### Registry Data (listing-only)
+
+Registry Data (S→C 0x07) is sent 29 times — one packet per 26.2 synced registry. The registry list and the mandatory entry-ids live in Layer.Global ([Global](../global/index.md)). The 26.2 wire format is a framed stream-codec: `[packet-id][registry Identifier][VarInt count][entries]`, with no root NBT Compound (that was the ≤1.20.x format). For the 13 mandatory registries (variant registries + `painting_variant`), canonical entry-ids are sent **without bodies** — each entry is an `Identifier + TAG_End (0x00)`, i.e. `Optional<Tag> = empty`; the client takes bodies from the bundled datapack. The other 16 go out empty (`count=0`). Listing-only is accepted by the 26.2 client in field testing.
+
+What is missing is Update Tags (S→C 0x08): after loading the registries the client crashes in `updateComponents` with `Missing tag ...` — registries are validated for tag completeness. This is the next Configuration task. Full registry bodies (with values instead of datapack lookup) is also a separate future task; the [NBT](../nbt/index.md) writer for them is already in place.
+
+Packets the client sends proactively during Configuration (e.g. `minecraft:brand`, C→S 0x02) are returned by the bundles as `Ignored` — the conveyor swallows them without a kick and without advancement.
 
 ## Handler
 
@@ -68,6 +74,6 @@ Packets the client sends proactively during Configuration (e.g. `minecraft:brand
 
 ## Current limitations
 
-- The Configuration phase is implemented without Registry Data: registry listing goes listing-only (bodies are omitted). The skeleton brings the client to Disconnect, but a clean vanilla client may not reach Acknowledge Finish Configuration — at that step it validates registry/tag data (the MC-249007 cache helps only on re-entry within the same client process). The `Verstack.NBT` writer is already implemented ([NBT](../nbt/index.md)); a full Registry Data listing is a separate task.
+- The Configuration phase sends Registry Data (S→C 0x07) listing-only: 29 synced registries of 26.2, with entry-ids (no bodies) for the 13 mandatory ones. This is enough for the 26.2 client to load the registries, but Update Tags (S→C 0x08) is still missing: after the registries the client crashes in `updateComponents` with `Missing tag ...` — it validates tag completeness (the MC-249007 cache helps only on re-entry within the same client process). Update Tags is the next Configuration task. Full registry bodies (with values instead of datapack lookup) is also a separate future task; the [NBT](../nbt/index.md) writer for them is already in place.
 - After Configuration the channel is closed with an informational Disconnect: Play is not implemented (REALM is empty).
-- The `ArrayPool` scratch sizes in `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 KB`, `PAYLOAD_BUFFER_SIZE = 4 KB`) cover Status/Login/Configuration without Registry Data with headroom, but are too small for Play-phase chunks and Registry Data — a dynamic size or per-packet flush will be needed there.
+- The `ArrayPool` scratch sizes in `PacketDispatchSystem` (`FRAME_SCRATCH_SIZE = 16 KB`, `PAYLOAD_BUFFER_SIZE = 4 KB`) cover Status/Login/Configuration with Registry Data with headroom, but are too small for Play-phase chunks and for Update Tags — a dynamic size or per-packet flush will be needed there (Update Tags does not fit in 4 KB at once and is split across registries).

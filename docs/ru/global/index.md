@@ -38,6 +38,18 @@ Global — GLOBAL-мир в ECS, виден всем остальным мира
 
 `Update()` вызывается в конце каждого тика в `EntryPoint.RunMainLoop`. Не ECS-компонент, а обычный класс-сервис — потому что время едино для всех миров и не привязано к сущности.
 
+## Vanilla-реестры 26.2
+
+В Layer.Global лежат canonical списки synced-реестров Minecraft 26.2 для Configuration: `VanillaSyncedRegistries` и `VanillaRegistryEntries`. Это статические данные — обычные классы с `byte[][]`/`byte[][][]`, инициализируемые один раз при первом обращении.
+
+`VanillaSyncedRegistries.SyncedRegistryIds` — 29 идентификаторов synced-реестров как готовые UTF-8 байты (без VarInt-префикса). Источник — bytecode `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`, извлечённый статически через `javap`. Порядок массива совпадает с порядком отправки packet'ов Registry Data в Configuration.
+
+`VanillaRegistryEntries.EntryIds` — entry-ids для 13 обязательных реестров, index-aligned с `SyncedRegistryIds`. Все variant-реестры и `painting_variant` требуют ≥1 entry (клиент 26.2 валидирует non-empty); остальные 16 представлены пустым массивом (count=0 в listing). Источник — bundled-datapack клиент-jar, порядок внутри реестра alphabetical.
+
+Контринтуитивное: Java-поле `Registries.BIOME` разворачивается в `minecraft:worldgen/biome` (с префиксом `worldgen/`), а не в `minecraft:biome` — единственный реестр с префиксом из 29. Поэтому список выведён из bytecode, а не из имён полей.
+
+GC-free: горячий путь Configuration копирует байты в `SpanWriter` без аллокаций. Flow отправки (29 × Registry Data, listing-only wire-формат 26.2) описан в [Gateway](../gateway/index.md).
+
 ## Связь с другими слоями
 
 GLOBAL виден из Gateway и Realm через именованный мир `[DI(WorldScopes.GLOBAL)]`. Точка контакта Gateway → Global — `GatewayIntakeHandler`, который в `Init` достаёт `ServerInfoCacheStore` из GLOBAL-мира через `world.Aspect<ServerInfoCacheStore>()` и использует его `GetStatusJson()` при Status Request. Realm будет обращаться к Global аналогично — когда появятся системы фазы Play.
