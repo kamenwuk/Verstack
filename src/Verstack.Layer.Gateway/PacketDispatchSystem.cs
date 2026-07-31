@@ -1,12 +1,12 @@
 using Verstack.Layer.Gateway.Bundles;
 using Verstack.Network.Compression;
+using Verstack.Layer.Realm.User;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
+using Verstack.Lifecycle;
 using Leopotam.EcsProto;
 using System.Buffers;
 using Verstack.Debug;
-using Verstack.Layer.Realm.User;
-using Verstack.Lifecycle;
 
 namespace Verstack.Layer.Gateway;
 
@@ -74,11 +74,7 @@ internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
                     {
                         result = _pipeline.TryProcessPacket(entity, rawPacket, ref outbound, ref flowState);
 
-                        if (outbound.Written > 0)
-                        {
-                            channel.EnqueueOutbound(outbound.WrittenSpan);
-                            outbound.Reset();
-                        }
+                        outbound.Flush();
                     } while (result == PacketHandleResult.Continue);
                     
                     if (result != PacketHandleResult.Kick) 

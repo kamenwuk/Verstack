@@ -1,10 +1,8 @@
-using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
 using Leopotam.EcsProto;
 using Verstack.Debug;
-using Verstack.Nbt;
 
 namespace Verstack.Layer.Gateway.Bundles;
 

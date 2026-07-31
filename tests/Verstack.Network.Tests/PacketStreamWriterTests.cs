@@ -1,17 +1,14 @@
-using System;
-using System.Text;
 using Verstack.Network.Packet.Writers;
-using Xunit;
 
 namespace Verstack.Network.Tests.Packet
 {
-    public class PacketWriterTests
+    public class PacketStreamWriterTests
     {
         // Вспомогательный метод: используем out, так как ref struct нельзя класть в кортежи (ValueTuple)
-        private static byte[] CreateBuffer(out PacketWriter writer, int size = 256)
+        private static byte[] CreateBuffer(out PacketStreamWriter streamWriter, int size = 256)
         {
             var buffer = new byte[size];
-            writer = new PacketWriter(buffer);
+            streamWriter = new PacketStreamWriter(buffer);
             return buffer;
         }
 

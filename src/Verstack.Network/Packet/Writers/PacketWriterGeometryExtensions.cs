@@ -10,30 +10,30 @@ public static class PacketWriterGeometryExtensions
     // ─────────────────────────  UUID  ─────────────────────────
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketWriter WriteUuid(this ref PacketWriter writer, Guid value)
+    public static ref PacketStreamWriter WriteUuid(this ref PacketStreamWriter streamWriter, Guid value)
     {
-        value.TryWriteBytes(writer.FreeSpan, bigEndian: true, out _);
-        writer.Advance(16);
-        return ref writer;
+        value.TryWriteBytes(streamWriter.FreeSpan, bigEndian: true, out _);
+        streamWriter.Advance(16);
+        return ref streamWriter;
     }
 
     // ─────────────────────────  Vectors  ─────────────────────────
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketWriter WriteVector2(this ref PacketWriter writer, int x, int z)
+    public static ref PacketStreamWriter WriteVector2(this ref PacketStreamWriter streamWriter, int x, int z)
     {
-        writer.WriteInt(x);
-        writer.WriteInt(z);
-        return ref writer;
+        streamWriter.WriteInt(x);
+        streamWriter.WriteInt(z);
+        return ref streamWriter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketWriter WriteVector3(this ref PacketWriter writer, int x, int y, int z)
+    public static ref PacketStreamWriter WriteVector3(this ref PacketStreamWriter streamWriter, int x, int y, int z)
     {
         long value = ((long)x & 0x3FFFFFF) << 38;
         value |= ((long)z & 0x3FFFFFF) << 12;
         value |= (long)y & 0xFFF;
-        writer.WriteLong(value);
-        return ref writer;
+        streamWriter.WriteLong(value);
+        return ref streamWriter;
     }
 }

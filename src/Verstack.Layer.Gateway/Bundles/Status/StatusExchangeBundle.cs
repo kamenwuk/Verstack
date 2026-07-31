@@ -1,11 +1,10 @@
-using Verstack.Network.DataTypes;
+using Verstack.Network.Packet.Writers;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Verstack.Layer.Global;
 using Verstack.Lifecycle;
 using Leopotam.EcsProto;
 using Verstack.Debug;
-using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -30,12 +29,15 @@ internal sealed class StatusExchangeBundle : PacketBundle
 
         byte[] json = _serverInfo.GetStatusJson();
 
-        var writer = new PacketWriter(outbound.PayloadBuffer);
+        var writer = outbound.Begin();
+            
         writer.WriteVarInt(0x00)               // Status Response ID
             .WriteVarInt(json.Length)        // JSON string length
             .WriteSpanRaw(json);             // JSON string payload
-        
-        outbound.Send(writer.WrittenSpan);
+            
+        outbound.Commit(ref writer);
+
+
         return PacketHandleResult.Accepted;
     }
 }

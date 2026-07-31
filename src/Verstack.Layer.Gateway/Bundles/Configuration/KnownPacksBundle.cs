@@ -1,10 +1,9 @@
-using Verstack.Network.Packet;
 using Verstack.Network.Packet.Writers;
+using Verstack.Network.Packet;
 using Verstack.Layer.Global;
 using Leopotam.EcsProto;
 using Verstack.Debug;
 using Verstack.Nbt;
-using System;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -39,7 +38,9 @@ internal sealed class KnownPacksBundle : PacketBundle
                     byte[] registryId = syncedIds[i];
                     byte[][] entries = entryIds[i];
 
-                    var registryData = new PacketWriter(outbound.PayloadBuffer);
+                    // Получаем writer из outbound
+                    var registryData = outbound.Begin();
+                    
                     registryData.WriteVarInt(0x07) // registry_data
                                 .WriteString(registryId)
                                 .WriteVarInt(entries.Length);
@@ -138,7 +139,9 @@ internal sealed class KnownPacksBundle : PacketBundle
                             registryData.WriteBool(false);
                         }
                     }
-                    outbound.Send(registryData.WrittenSpan);
+                    
+                    // Коммитим накопленный payload во framing-буфер
+                    outbound.Commit(ref registryData);
                 }
 
                 return PacketHandleResult.Continue;
@@ -154,7 +157,9 @@ internal sealed class KnownPacksBundle : PacketBundle
 
                 for (int i = 0; i < registryNames.Length; i++)
                 {
-                    var updateTags = new PacketWriter(outbound.PayloadBuffer);
+                    // Получаем writer
+                    var updateTags = outbound.Begin();
+                    
                     updateTags.WriteVarInt(0x0D) // update_tags
                               .WriteVarInt(1)    // одна группа на реестр
                               .WriteString(registryNames[i]);
@@ -167,7 +172,9 @@ internal sealed class KnownPacksBundle : PacketBundle
                         updateTags.WriteString(tag)
                                   .WriteVarInt(0); // пустой список элементов
                     }
-                    outbound.Send(updateTags.WrittenSpan);
+                    
+                    // Коммитим пакет
+                    outbound.Commit(ref updateTags);
                 }
 
                 Logger.Debug(LogKey.PacketUpdateTags);
@@ -176,16 +183,17 @@ internal sealed class KnownPacksBundle : PacketBundle
             case 2:
             {
                 // --- 3. S→C Feature Flags (ID 0x0C) ---
-                var featureFlags = new PacketWriter(outbound.PayloadBuffer);
+                var featureFlags = outbound.Begin();
                 featureFlags.WriteVarInt(0x0C) // update_enabled_features
                             .WriteVarInt(1)
                             .WriteString("minecraft:vanilla");
-                outbound.Send(featureFlags.WrittenSpan);
+                outbound.Commit(ref featureFlags);
 
                 // --- 4. S→C Finish Configuration (ID 0x03) ---
-                var finishConfiguration = new PacketWriter(outbound.PayloadBuffer);
+                // Снова вызываем Begin, предыдущий writer уже сброшен
+                var finishConfiguration = outbound.Begin();
                 finishConfiguration.WriteVarInt(0x03); // finish_configuration
-                outbound.Send(finishConfiguration.WrittenSpan);
+                outbound.Commit(ref finishConfiguration);
 
                 Logger.Debug(LogKey.PacketConfigurationFinish);
                 return PacketHandleResult.Accepted;

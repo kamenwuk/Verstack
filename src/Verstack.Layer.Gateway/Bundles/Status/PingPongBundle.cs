@@ -1,9 +1,9 @@
+using Verstack.Network.Packet.Writers;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto;
 using System.Buffers;
 using Verstack.Debug;
-using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -21,11 +21,13 @@ internal sealed class PingPongBundle : PacketBundle
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
         long timestamp = Numeric.ReadLong(ref reader);
 
-        var writer = new PacketWriter(outbound.PayloadBuffer);
-        writer.WriteVarInt(0x01)
-            .WriteLong(timestamp);
+        var writer = outbound.Begin();
+        {
+            writer.WriteVarInt(0x01)
+                .WriteLong(timestamp);
+        }
+        outbound.Commit(ref writer);
         
-        outbound.Send(writer.WrittenSpan);
         return PacketHandleResult.Accepted;
     }
 }

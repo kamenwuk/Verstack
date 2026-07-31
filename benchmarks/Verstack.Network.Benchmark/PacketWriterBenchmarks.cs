@@ -1,6 +1,5 @@
-using System;
-using BenchmarkDotNet.Attributes;
 using Verstack.Network.Packet.Writers;
+using BenchmarkDotNet.Attributes;
 
 namespace Verstack.Network.Benchmarks;
 
@@ -29,7 +28,7 @@ public class PacketWriterBenchmarks
     [Benchmark(Baseline = true)]
     public int WriteVarInt()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         writer.WriteVarInt(2147483647); // Максимальный VarInt (5 байт)
         return writer.Written;
     }
@@ -37,7 +36,7 @@ public class PacketWriterBenchmarks
     [Benchmark]
     public int WriteString_FromUtf8Span()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         writer.WriteString(_minecraftOverworldUtf8);
         return writer.Written;
     }
@@ -45,7 +44,7 @@ public class PacketWriterBenchmarks
     [Benchmark]
     public int WriteString_FromCSharpString()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         writer.WriteString(_minecraftOverworldString);
         return writer.Written;
     }
@@ -53,7 +52,7 @@ public class PacketWriterBenchmarks
     [Benchmark]
     public int WriteUuid()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         writer.WriteUuid(_testUuid);
         return writer.Written;
     }
@@ -61,7 +60,7 @@ public class PacketWriterBenchmarks
     [Benchmark]
     public int WriteVector3()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         writer.WriteVector3(10, 64, -20);
         return writer.Written;
     }
@@ -71,7 +70,7 @@ public class PacketWriterBenchmarks
     [Benchmark]
     public int AssemblePlayLoginPacket()
     {
-        var writer = new PacketWriter(_payloadBuffer);
+        var writer = new PacketStreamWriter(_payloadBuffer);
         
         writer.WriteVarInt(0x31)                        // Packet ID
               .WriteInt(1)                              // Entity ID

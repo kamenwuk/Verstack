@@ -9,20 +9,20 @@ namespace Verstack.Network.Packet.Writers;
 public static class PacketWriterTextExtensions
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketWriter WriteString(this ref PacketWriter writer, string value)
+    public static ref PacketStreamWriter WriteString(this ref PacketStreamWriter streamWriter, string value)
     {
         int byteCount = Encoding.UTF8.GetByteCount(value);
-        writer.WriteVarInt(byteCount);
-        Encoding.UTF8.GetBytes(value, writer.FreeSpan);
-        writer.Advance(byteCount);
-        return ref writer;
+        streamWriter.WriteVarInt(byteCount);
+        Encoding.UTF8.GetBytes(value, streamWriter.FreeSpan);
+        streamWriter.Advance(byteCount);
+        return ref streamWriter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketWriter WriteString(this ref PacketWriter writer, scoped ReadOnlySpan<byte> utf8Value)
+    public static ref PacketStreamWriter WriteString(this ref PacketStreamWriter streamWriter, scoped ReadOnlySpan<byte> utf8Value)
     {
-        writer.WriteVarInt(utf8Value.Length);
-        writer.WriteSpanRaw(utf8Value);
-        return ref writer;
+        streamWriter.WriteVarInt(utf8Value.Length);
+        streamWriter.WriteSpanRaw(utf8Value);
+        return ref streamWriter;
     }
 }
