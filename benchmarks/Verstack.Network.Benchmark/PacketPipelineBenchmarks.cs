@@ -38,7 +38,7 @@ public class PacketPipelineBenchmarks
     {
         var state = new PacketFlowState(0, 0);
         var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
-        return _pipeline.TryProcessPacket(_dummyEntity, _rawPacket, ref outbound, ref state);
+        return _pipeline.TryProcessPacket(_dummyEntity, _rawPacket, ref outbound, ref state) == PacketHandleResult.Accepted;
     }
 }
 

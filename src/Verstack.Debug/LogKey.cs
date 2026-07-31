@@ -30,5 +30,15 @@ public enum LogKey
     
     PacketClientInformation,
     PacketKnownPacks,
-    PacketConfigurationFinish
+    PacketUpdateTags,
+    PacketConfigurationFinish,
+    
+    PacketPlayDisconnect,
+    PacketRealmTransfer,
+    PacketPlayLogin,
+    PacketPlayWorldBorder,
+    PacketPlayAbilities,
+    PacketPlayInfoUpdate,
+    PacketPlayPosition,
+    PacketPlaySpawnPosition
 }

@@ -1,3 +1,3 @@
 ﻿using BenchmarkDotNet.Running;
 
-BenchmarkRunner.Run<NbtReaderBenchmarks>();
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);

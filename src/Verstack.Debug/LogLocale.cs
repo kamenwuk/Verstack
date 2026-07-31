@@ -31,9 +31,22 @@ public static class LogLocale
         { LogKey.PacketLoginStart, "Login Start ({0}) -> Login Success записан в буфер (offline UUID сгенерирован)." },
         { LogKey.PacketLoginAcknowledged, "Login Acknowledged получен от {0} — фаза Login завершена." },
 
-        { LogKey.PacketClientInformation, "Client Information (locale={0}) -> Known Packs записан в буфер." },
-        { LogKey.PacketKnownPacks, "Known Packs response ({0} пак(ов)) -> Feature Flags + Finish Configuration записаны в буфер." },
-        { LogKey.PacketConfigurationFinish, "Configuration завершена для {0} -> Disconnect (Play не реализован) записан в буфер." }
+        { LogKey.PacketClientInformation, "Client Information (locale={0}) -> Clientbound Known Packs (0x0E) записан в буфер." },
+        { LogKey.PacketKnownPacks, "Known Packs (0x07) получен -> Registry Data (0x07) отправлен клиенту (Шаг 0)." },
+        
+        { LogKey.PacketUpdateTags, "Шаг 1: Пакеты Update Tags (0x0D) обработаны и отправлены." },
+        { LogKey.PacketConfigurationFinish, "Шаг 2: Feature Flags (0x0C) + Finish Configuration (0x03) отправлены." },
+        
+        { LogKey.PacketPlayDisconnect, "Acknowledge Finish Configuration (0x03) получен от {0}. Отправлен Disconnect (0x20) — Play фаза в разработке." },
+
+        { LogKey.PacketRealmTransfer, "Сессия {0} передана в Realm. Ожидание инициализации Play." },
+        { LogKey.PacketPlayLogin, "Realm -> {0}: Отправлен Login (Play) (0x31)" },
+        { LogKey.PacketPlayWorldBorder, "Realm -> {0}: Отправлен Initialize World Border (0x2B)" },
+        { LogKey.PacketPlayAbilities, "Realm -> {0}: Отправлен Player Abilities (0x40)" },
+        { LogKey.PacketPlayInfoUpdate, "Realm -> {0}: Отправлен Player Info Update (0x46)" },
+        { LogKey.PacketPlayPosition, "Realm -> {0}: Отправлен Synchronize Player Position (0x48)" },
+        { LogKey.PacketPlaySpawnPosition, "Realm -> {0}: Отправлен Set Default Spawn Position (0x61)" }
+        
     };
 
     /// <summary>
@@ -43,8 +56,8 @@ public static class LogLocale
     {
         if (_messages.TryGetValue(key, out var msg))
         {
-            // Подставляем аргументы (например, IP-адрес в {0})
-            return args.Length > 0 ? string.Format(msg, args) : msg;
+            // Добавлена проверка на null, так как Logger.Error передает null
+            return args is { Length: > 0 } ? string.Format(msg, args) : msg;
         }
         return $"[UNKNOWN_LOG_KEY: {key}]";
     }

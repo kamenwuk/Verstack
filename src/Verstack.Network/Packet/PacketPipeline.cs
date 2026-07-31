@@ -31,27 +31,25 @@ namespace Verstack.Network.Packet
         /// <summary>
         /// Запускает пакет через текущий бандл.
         /// </summary>
-        public bool TryProcessPacket(ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound, ref PacketFlowState state)
+        public PacketHandleResult TryProcessPacket(ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound, ref PacketFlowState state)
         {
             if (state.BundleIndex < 0 || state.BundleIndex >= _bundles.Length)
-                return false;
+                return PacketHandleResult.Kick;
 
             var bundle = _bundles[state.BundleIndex];
             var result = bundle.TryProcess(state.StepIndex, entity, packet, ref outbound);
-            if (result == PacketHandleResult.Kick)
-                return false;
 
-            // Ignored: пакет проглочен, состояние конвейера не меняется.
-            if (result == PacketHandleResult.Accepted)
+            if (result == PacketHandleResult.Ignored)
+                return result;
+            
+            // Accepted
+            state.StepIndex++;
+            if (state.StepIndex >= bundle.StepCount)
             {
-                state.StepIndex++;
-                if (state.StepIndex >= bundle.StepCount)
-                {
-                    state.BundleIndex++;
-                    state.StepIndex = 0;
-                }
+                state.BundleIndex++;
+                state.StepIndex = 0;
             }
-            return true;
+            return result;
         }
     }
 }

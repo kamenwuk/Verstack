@@ -1,5 +1,7 @@
-﻿// File: Verstack.App/Program.cs
-using Verstack.Bootstrap; // Используем пространство имен твоего EntryPoint
+﻿using Verstack.Layer.Gateway;
+using Verstack.Layer.Global;
+using Verstack.Layer.Realm;
+using Verstack.Lifecycle;
 
 // 1. Создаем точку входа
 var entryPoint = new EntryPoint();
@@ -21,7 +23,7 @@ AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
 
 // 3. Запускаем сервер на порту 25565 (стандартный порт Minecraft)
 Console.WriteLine("Запуск Verstack Server...");
-entryPoint.Start(25565);
+entryPoint.Start(25565, new GlobalLayer(), new GatewayLayer(), new RealmLayer());
 
 // После того как entryPoint.Start() завершится (когда _isRunning станет false),
 // программа сама закроется.

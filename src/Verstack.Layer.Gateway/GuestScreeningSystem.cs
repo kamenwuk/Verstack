@@ -1,9 +1,9 @@
-using Verstack.Layer.Global;
+using Verstack.Layer.Global.User;
 using Leopotam.EcsProto.QoL;
+using Verstack.Lifecycle;
 using Leopotam.EcsProto;
 using Verstack.Network;
 using Verstack.Debug;
-using Verstack.Core;
 
 namespace Verstack.Layer.Gateway;
 
@@ -16,9 +16,7 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
 {
     [DI] private readonly TcpNetworkService _tcpNetworkService = null!;
     [DI] private readonly GatewayCacheStore _gatewayCacheStore = null!;
-    [DI(WorldScopes.GATEWAY)] private readonly ProtoWorld _world = null!;
-
-    private readonly GatewayIntakeHandler _intakeHandler = new();
+    [DI(ServerWorldScopes.GATEWAY)] private readonly ProtoWorld _world = null!;
 
     private readonly List<NetworkChannel> _awaitingHandshake = [];
 
@@ -46,7 +44,7 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
             bool stateChanged = false;
             while (!stateChanged && channel.IncomingPackets.TryDequeue(out var rawPacket))
             {
-                int nextState = _intakeHandler.TryParseHandshake(rawPacket, out var data);
+                int nextState = GatewayIntakeHandler.TryParseHandshake(rawPacket, out var data);
 
                 switch (nextState)
                 {

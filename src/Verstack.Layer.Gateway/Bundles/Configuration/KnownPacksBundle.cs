@@ -1,71 +1,194 @@
-using System.Buffers;
-using Leopotam.EcsProto;
-using Verstack.Debug;
-using Verstack.Layer.Global;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
+using Verstack.Layer.Global;
+using Leopotam.EcsProto;
+using Verstack.Debug;
+using Verstack.Nbt;
+using System;
 
-namespace Verstack.Layer.Gateway.Bundles;
-
-/// <summary>
-/// Шаг Configuration: Known Packs response (0x07) → Registry Data (0x07) → Feature Flags (0x0C) + Finish (0x03).
-/// Сервер блокирует Configuration до получения serverbound Known Packs (подмножество паков, известных клиенту);
-/// читаем только их количество, затем отправляем Registry Data (listing-only, пустые synced-реестры 26.2),
-/// Feature Flags (<c>["minecraft:vanilla"]</c>) и Finish Configuration.
-/// </summary>
 internal sealed class KnownPacksBundle : PacketBundle
 {
-    public override int StepCount => 1;
+    public override int StepCount => 3;
 
     public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
-        // minecraft:brand (C→S 0x02) — может прилететь и на этом шаге.
-        if (packet.Id == 0x02)
-            return PacketHandleResult.Ignored;
-        if (packet.Id != 0x07) // Known Packs (serverbound)
-            return PacketHandleResult.Kick;
-
-        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
-        int knownCount = VarInt.Read(ref reader);
-
-        Logger.Debug(LogKey.PacketKnownPacks, knownCount);
-
-        // S→C Registry Data (0x07): listing-only — по одному packet на каждый synced-реестр 26.2.
-        // 13 variant-реестров требуют ≥1 entry (клиент 26.2 валидирует non-empty): посылаем их
-        // canonical entry-ids БЕЗ тел — клиент достаёт тела из bundled-datapack
-        // (entry = Identifier + TAG_End 0x00 = Optional<Tag> empty). Остальные 16 уходят пустыми (count=0).
-        // Wire-формат 26.2: framed stream-codec, БЕЗ корневого Compound (это формат ≤1.20.x).
-        byte[][] syncedIds = VanillaSyncedRegistries.SyncedRegistryIds;
-        byte[][][] entryIds = VanillaRegistryEntries.EntryIds;
-        for (int i = 0; i < syncedIds.Length; i++)
+        switch (stepIndex)
         {
-            byte[] registryId = syncedIds[i];
-            byte[][] entries = entryIds[i];
-
-            var rdw = new SpanWriter(outbound.PayloadBuffer);
-            VarInt.Write(ref rdw, 0x07);                 // Clientbound Registry Data ID
-            Utf8String.Write(ref rdw, registryId);       // Identifier (имя реестра)
-            VarInt.Write(ref rdw, entries.Length);       // entries count (0 для listing-only)
-            foreach (byte[] entryId in entries)
+            case 0:
             {
-                Utf8String.Write(ref rdw, entryId);      // Identifier (entry name)
-                rdw.GetSpan(1)[0] = 0;                   // Optional<Tag> = empty → TAG_End (0x00)
-                rdw.Advance(1);                          //   клиент берёт тело из bundled-datapack
+                // 0x02 - Plugin Message (serverbound) - пропускаем (brand)
+                if (packet.Id == 0x02) return PacketHandleResult.Ignored;
+                // 0x07 - Known Packs (serverbound) - ждем
+                if (packet.Id != 0x07) return PacketHandleResult.Kick;
+
+                // --- 1. S→C Registry Data (ID 0x07) ---
+                byte[][] syncedIds = SyncedRegistryCatalog.RegistryIds;
+                byte[][][] entryIds = SyncedRegistryCatalog.MandatoryEntries;
+
+                if (syncedIds.Length != entryIds.Length)
+                    throw new InvalidOperationException("Arrays length mismatch");
+
+                // Увеличенные буферы для NBT (было 16/2048, стало с запасом)
+                Span<NbtFrame> nbtFrames = stackalloc NbtFrame[32];
+                Span<byte> nbtBuffer = stackalloc byte[8192];
+
+                for (int i = 0; i < syncedIds.Length; i++)
+                {
+                    byte[] registryId = syncedIds[i];
+                    byte[][] entries = entryIds[i];
+
+                    var rdw = new SpanWriter(outbound.PayloadBuffer);
+                    VarInt.Write(ref rdw, 0x07); // registry_data
+                    Utf8String.Write(ref rdw, registryId);
+                    VarInt.Write(ref rdw, entries.Length);
+
+                    foreach (byte[] entryName in entries)
+                    {
+                        Utf8String.Write(ref rdw, entryName);
+
+                        bool isDimensionType = i == (int)SyncedRegistryCatalog.RegistryType.DimensionType;
+                        bool isOverworld = isDimensionType && entryName.SequenceEqual("minecraft:overworld"u8);
+
+                        if (isOverworld)
+                        {
+                            // 2. Prefixed Optional NBT: Boolean = true (0x01)
+                            rdw.GetSpan(1)[0] = 1;
+                            rdw.Advance(1);
+
+                            // 3. NBT Data – точная копия дефолтного overworld
+                            var nbtWriter = new NbtWriter(nbtBuffer, nbtFrames, networked: true);
+                            nbtWriter.BeginRootCompound()
+                                .WriteFloat("ambient_light"u8, 0.0f)
+
+                                // --- attributes ---
+                                .BeginCompound("attributes"u8)
+                                    // Ambient sounds
+                                    .BeginCompound("minecraft:audio/ambient_sounds"u8)
+                                        .BeginCompound("mood"u8)
+                                            .WriteInt("block_search_extent"u8, 8)
+                                            .WriteInt("offset"u8, 2)
+                                            .WriteString("sound"u8, "minecraft:ambient.cave"u8)
+                                            .WriteInt("tick_delay"u8, 6000)
+                                        .EndCompound()
+                                    .EndCompound()
+
+                                    // Background music
+                                    .BeginCompound("minecraft:audio/background_music"u8)
+                                        .BeginCompound("creative"u8)
+                                            .WriteInt("max_delay"u8, 24000)
+                                            .WriteInt("min_delay"u8, 12000)
+                                            .WriteString("sound"u8, "minecraft:music.creative"u8)
+                                        .EndCompound()
+                                        .BeginCompound("default"u8)
+                                            .WriteInt("max_delay"u8, 24000)
+                                            .WriteInt("min_delay"u8, 12000)
+                                            .WriteString("sound"u8, "minecraft:music.game"u8)
+                                        .EndCompound()
+                                    .EndCompound()
+
+                                    // Bed rule
+                                    .BeginCompound("minecraft:gameplay/bed_rule"u8)
+                                        .WriteString("can_set_spawn"u8, "always"u8)
+                                        .WriteString("can_sleep"u8, "when_dark"u8)
+                                        .BeginCompound("error_message"u8)
+                                            .WriteString("translate"u8, "block.minecraft.bed.no_sleep"u8)
+                                        .EndCompound()
+                                    .EndCompound()
+
+                                    // Gameplay flags
+                                    .WriteBool("minecraft:gameplay/nether_portal_spawns_piglin"u8, true)
+                                    .WriteBool("minecraft:gameplay/respawn_anchor_works"u8, false)
+
+                                    // Visual colors – теперь целые числа!
+                                    .WriteInt("minecraft:visual/ambient_light_color"u8, unchecked((int)0xFF0A0A0A))
+                                    .WriteInt("minecraft:visual/cloud_color"u8,           unchecked((int)0xCCFFFFFF))
+                                    .WriteFloat("minecraft:visual/cloud_height"u8, 192.33f)
+                                    .WriteInt("minecraft:visual/fog_color"u8,              unchecked((int)0xFFC0D8FF))
+                                    .WriteInt("minecraft:visual/sky_color"u8,              unchecked((int)0xFF78A7FF))
+                                .EndCompound()
+
+                                // --- Остальные поля корневого уровня ---
+                                .WriteDouble("coordinate_scale"u8, 1.0)
+                                .WriteString("default_clock"u8, "minecraft:overworld"u8)
+                                .WriteBool("has_ceiling"u8, false)          // ← исправлено: в overworld должно быть false
+                                .WriteBool("has_ender_dragon_fight"u8, false)
+                                .WriteBool("has_skylight"u8, true)
+                                .WriteInt("height"u8, 384)
+                                .WriteString("infiniburn"u8, "#minecraft:infiniburn_overworld"u8)
+                                .WriteInt("logical_height"u8, 384)
+                                .WriteInt("min_y"u8, -64)
+                                .WriteInt("monster_spawn_block_light_limit"u8, 0)
+                                .BeginCompound("monster_spawn_light_level"u8)
+                                    .WriteString("type"u8, "minecraft:uniform"u8)
+                                    .WriteInt("min_inclusive"u8, 0)
+                                    .WriteInt("max_inclusive"u8, 7)
+                                .EndCompound()
+                                .WriteString("timelines"u8, "#minecraft:in_overworld"u8)
+                            .EndCompound();
+
+                            ReadOnlySpan<byte> nbtData = nbtWriter.Finish();
+                            nbtData.CopyTo(rdw.GetSpan(nbtData.Length));
+                            rdw.Advance(nbtData.Length);
+                        }
+                        else
+                        {
+                            // Нет данных для других записей
+                            rdw.GetSpan(1)[0] = 0;
+                            rdw.Advance(1);
+                        }
+                    }
+                    outbound.Send(rdw.WrittenSpan);
+                }
+
+                return PacketHandleResult.Continue;
             }
-            outbound.Send(rdw.WrittenSpan);
+            case 1:
+            {
+                // --- 2. S→C Update Tags (ID 0x0D) ---
+                // Полностью переделано: отправляем все теги для каждого реестра одним пакетом,
+                // без ограничения размера. Это гарантирует, что клиент получит все теги,
+                // включая #minecraft:infiniburn_overworld.
+                byte[][] registryNames = RegistryTagCatalog.RegistryNames;
+                byte[][][] tagNames = RegistryTagCatalog.TagNames;
+
+                for (int i = 0; i < registryNames.Length; i++)
+                {
+                    var tw = new SpanWriter(outbound.PayloadBuffer);
+                    VarInt.Write(ref tw, 0x0D); // update_tags
+                    VarInt.Write(ref tw, 1);    // одна группа на реестр
+                    Utf8String.Write(ref tw, registryNames[i]);
+                    byte[][] tags = tagNames[i];
+                    VarInt.Write(ref tw, tags.Length);
+                    foreach (byte[] tag in tags)
+                    {
+                        Utf8String.Write(ref tw, tag);
+                        VarInt.Write(ref tw, 0); // пустой список элементов
+                    }
+                    outbound.Send(tw.WrittenSpan);
+                }
+
+                Logger.Debug(LogKey.PacketUpdateTags);
+                return PacketHandleResult.Continue;
+            }
+            case 2:
+            {
+                // --- 3. S→C Feature Flags (ID 0x0C) ---
+                var ffw = new SpanWriter(outbound.PayloadBuffer);
+                VarInt.Write(ref ffw, 0x0C); // update_enabled_features
+                VarInt.Write(ref ffw, 1);
+                Utf8String.Write(ref ffw, "minecraft:vanilla");
+                outbound.Send(ffw.WrittenSpan);
+
+                // --- 4. S→C Finish Configuration (ID 0x03) ---
+                var fcw = new SpanWriter(outbound.PayloadBuffer);
+                VarInt.Write(ref fcw, 0x03); // finish_configuration
+                outbound.Send(fcw.WrittenSpan);
+
+                Logger.Debug(LogKey.PacketConfigurationFinish);
+                return PacketHandleResult.Accepted;
+            }
+            default:
+                return PacketHandleResult.Kick;
         }
-
-        // S→C Feature Flags (0x0C): ["minecraft:vanilla"].
-        var ffw = new SpanWriter(outbound.PayloadBuffer);
-        VarInt.Write(ref ffw, 0x0C);                      // Feature Flags ID
-        VarInt.Write(ref ffw, 1);                         // 1 flag
-        Utf8String.Write(ref ffw, "minecraft:vanilla");
-        outbound.Send(ffw.WrittenSpan);
-
-        // S→C Finish Configuration (0x03): полей нет. Отдельный кадр — отдельная Send.
-        var fcw = new SpanWriter(outbound.PayloadBuffer);
-        VarInt.Write(ref fcw, 0x03);                      // Finish Configuration ID
-        outbound.Send(fcw.WrittenSpan);
-        return PacketHandleResult.Accepted;
     }
 }

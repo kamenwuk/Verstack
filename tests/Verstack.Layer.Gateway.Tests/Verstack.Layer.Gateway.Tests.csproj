@@ -19,8 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
-      <ProjectReference Include="..\..\src\Verstack.Network\Verstack.Network.csproj" />
+      <ProjectReference Include="..\..\src\Verstack.Layer.Gateway\Verstack.Layer.Gateway.csproj" />
     </ItemGroup>
 
 </Project>

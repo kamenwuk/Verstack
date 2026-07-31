@@ -1,3 +1,4 @@
+using Verstack.Layer.Global.User;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
@@ -5,11 +6,11 @@ using Verstack.Network;
 
 namespace Verstack.Layer.Gateway;
 
-public sealed class GatewayCacheStore : ProtoAspectInject
+internal sealed class GatewayCacheStore : ProtoAspectInject
 {
     internal readonly ProtoPool<NetworkSession> Sessions = null!;
-    internal readonly ProtoPool<PacketFlowState> FlowStates = null!;
     internal readonly ProtoPool<UserProfile> UserProfiles = null!;
+    internal readonly ProtoPool<PacketFlowState> FlowStates = null!;
     
     // Прямой словарь: Сущность -> Канал
     private readonly Dictionary<int, NetworkChannel> _entityToChannel = new();

@@ -1,71 +1,74 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Verstack.Nbt;
 
 /// <summary>
 /// Расширения <see cref="NbtWriter"/> для массивов NBT (TAG_Byte_Array / TAG_Int_Array / TAG_Long_Array).
-/// Вынесены отдельно, чтобы ядро writer'а содержало только скалярный API: массивы нужны chunk'ам и
-/// Registries (Play), для базового тестирования эталонными байтами необязательны.
-///
-/// Wire-формат одинаковый для всех трёх: <c>[Int длина BE][N элементов BE]</c>. В Compound им предшествует
-/// type-байт и имя (через <see cref="NbtWriter.WriteNameAndType"/>), в List пишется только payload
-/// (тип и количество уже в заголовке List, учёт — через <see cref="NbtWriter.OnListItem"/>).
+/// Вынесены отдельно, чтобы ядро writer's содержало только скалярный API.
+/// Поддерживает Fluent API (возвращает ref NbtWriter).
 /// </summary>
-internal static class NbtWriterArrayExtensions
+public static class NbtWriterArrayExtensions
 {
     // ───────────────  В Compound (с именем)  ───────────────
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteByteArray(this ref NbtWriter writer, string name, ReadOnlySpan<byte> value)
+    public static ref NbtWriter WriteByteArray(this ref NbtWriter writer, ReadOnlySpan<byte> nameUtf8, ReadOnlySpan<byte> value)
     {
-        writer.WriteNameAndType(NbtTagType.ByteArray, name);
+        writer.WriteNameAndType(NbtTagType.ByteArray, nameUtf8);
         writer.WriteIntRaw(value.Length);
         writer.WriteSpan(value);
+        return ref writer;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteIntArray(this ref NbtWriter writer, string name, ReadOnlySpan<int> value)
+    public static ref NbtWriter WriteIntArray(this ref NbtWriter writer, ReadOnlySpan<byte> nameUtf8, ReadOnlySpan<int> value)
     {
-        writer.WriteNameAndType(NbtTagType.IntArray, name);
+        writer.WriteNameAndType(NbtTagType.IntArray, nameUtf8);
         writer.WriteIntRaw(value.Length);
         for (var i = 0; i < value.Length; i++)
             writer.WriteIntRaw(value[i]);
+        return ref writer;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteLongArray(this ref NbtWriter writer, string name, ReadOnlySpan<long> value)
+    public static ref NbtWriter WriteLongArray(this ref NbtWriter writer, ReadOnlySpan<byte> nameUtf8, ReadOnlySpan<long> value)
     {
-        writer.WriteNameAndType(NbtTagType.LongArray, name);
+        writer.WriteNameAndType(NbtTagType.LongArray, nameUtf8);
         writer.WriteIntRaw(value.Length);
         for (var i = 0; i < value.Length; i++)
             writer.WriteLongRaw(value[i]);
+        return ref writer;
     }
 
     // ───────────────────  В List (без имени)  ───────────────────
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteByteArray(this ref NbtWriter writer, ReadOnlySpan<byte> value)
+    public static ref NbtWriter WriteByteArray(this ref NbtWriter writer, ReadOnlySpan<byte> value)
     {
-        writer.OnListItem(NbtTagType.ByteArray);
+        writer.OnListItemInternal(NbtTagType.ByteArray);
         writer.WriteIntRaw(value.Length);
         writer.WriteSpan(value);
+        return ref writer;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteIntArray(this ref NbtWriter writer, ReadOnlySpan<int> value)
+    public static ref NbtWriter WriteIntArray(this ref NbtWriter writer, ReadOnlySpan<int> value)
     {
-        writer.OnListItem(NbtTagType.IntArray);
+        writer.OnListItemInternal(NbtTagType.IntArray);
         writer.WriteIntRaw(value.Length);
         for (var i = 0; i < value.Length; i++)
             writer.WriteIntRaw(value[i]);
+        return ref writer;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteLongArray(this ref NbtWriter writer, ReadOnlySpan<long> value)
+    public static ref NbtWriter WriteLongArray(this ref NbtWriter writer, ReadOnlySpan<long> value)
     {
-        writer.OnListItem(NbtTagType.LongArray);
+        writer.OnListItemInternal(NbtTagType.LongArray);
         writer.WriteIntRaw(value.Length);
         for (var i = 0; i < value.Length; i++)
             writer.WriteLongRaw(value[i]);
+        return ref writer;
     }
 }

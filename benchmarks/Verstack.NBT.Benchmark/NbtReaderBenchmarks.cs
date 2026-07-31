@@ -46,16 +46,16 @@ public class NbtReaderBenchmarks
         Span<byte> buf = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
-        writer.BeginRootCompound();
-        writer.WriteByte("byte", 127);
-        writer.WriteShort("short", 32000);
-        writer.WriteInt("int", 42);
-        writer.WriteLong("long", long.MaxValue);
-        writer.WriteFloat("float", 3.14f);
-        writer.WriteDouble("double", 2.718281828);
-        writer.WriteString("str", "Hello, NBT!");
-        writer.WriteBool("flag", true);
-        writer.EndCompound();
+        writer.BeginRootCompound()
+            .WriteByte("byte"u8, 127)
+            .WriteShort("short"u8, 32000)
+            .WriteInt("int"u8, 42)
+            .WriteLong("long"u8, long.MaxValue)
+            .WriteFloat("float"u8, 3.14f)
+            .WriteDouble("double"u8, 2.718281828)
+            .WriteString("str"u8, "Hello, NBT!"u8)
+            .WriteBool("flag"u8, true)
+        .EndCompound();
         return buf[..writer.Written].ToArray();
     }
 
@@ -64,15 +64,15 @@ public class NbtReaderBenchmarks
         Span<byte> buf = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
-        writer.BeginRootCompound();
-        writer.BeginCompound("inner");
-        writer.WriteInt("x", 10);
-        writer.WriteInt("y", 20);
-        writer.BeginCompound("deep");
-        writer.WriteString("key", "value");
-        writer.EndCompound();
-        writer.EndCompound();
-        writer.EndCompound();
+        writer.BeginRootCompound()
+            .BeginCompound("inner"u8)
+                .WriteInt("x"u8, 10)
+                .WriteInt("y"u8, 20)
+            .BeginCompound("deep"u8)
+            .WriteString("key"u8, "value"u8)
+            .EndCompound()
+            .EndCompound()
+        .EndCompound();
         return buf[..writer.Written].ToArray();
     }
 
@@ -82,8 +82,8 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.BeginList("numbers", NbtTagType.Int, 100);
-        for (int i = 0; i < 100; i++) writer.WriteInt(i);
+        writer.BeginList("numbers"u8, NbtTagType.Int, 100);
+        for (int i = 0; i < 100; i++) writer.WriteListItemInt(i);
         writer.EndList();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
@@ -95,10 +95,10 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.BeginList("words", NbtTagType.String, 20);
-        writer.WriteString("alpha"); writer.WriteString("beta"); writer.WriteString("gamma");
-        writer.WriteString("delta"); writer.WriteString("epsilon");
-        for (int i = 0; i < 15; i++) writer.WriteString("filler");
+        writer.BeginList("words"u8, NbtTagType.String, 20);
+        writer.WriteListItemString("alpha"u8); writer.WriteListItemString("beta"u8); writer.WriteListItemString("gamma"u8);
+        writer.WriteListItemString("delta"u8); writer.WriteListItemString("epsilon"u8);
+        for (int i = 0; i < 15; i++) writer.WriteListItemString("filler"u8);
         writer.EndList();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
@@ -106,12 +106,11 @@ public class NbtReaderBenchmarks
 
     private static byte[] GenerateLargeString(bool networked)
     {
-        string big = new string('A', 2000);
         Span<byte> buf = stackalloc byte[4096];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.WriteString("big", big);
+        writer.WriteString("big"u8, "bigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbibigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbiggbigbigbigbigbig"u8);
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
     }
@@ -122,8 +121,8 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.BeginList("data", NbtTagType.Byte, 1000);
-        for (int i = 0; i < 1000; i++) writer.WriteByte((sbyte)(i & 0xFF));
+        writer.BeginList("data"u8, NbtTagType.Byte, 1000);
+        for (int i = 0; i < 1000; i++) writer.WriteListItemByte((sbyte)(i & 0xFF));
         writer.EndList();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
@@ -135,8 +134,8 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.BeginList("ints", NbtTagType.Int, 1000);
-        for (int i = 0; i < 1000; i++) writer.WriteInt(i);
+        writer.BeginList("ints"u8, NbtTagType.Int, 1000);
+        for (int i = 0; i < 1000; i++) writer.WriteListItemInt(i);
         writer.EndList();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
@@ -148,8 +147,8 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        for (int i = 0; i < 10; i++) writer.BeginCompound("level");
-        writer.WriteInt("value", 42);
+        for (int i = 0; i < 10; i++) writer.BeginCompound("level"u8);
+        writer.WriteInt("value"u8, 42);
         for (int i = 0; i < 10; i++) writer.EndCompound();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();
@@ -161,9 +160,9 @@ public class NbtReaderBenchmarks
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
         var writer = new NbtWriter(buf, frames, networked);
         writer.BeginRootCompound();
-        writer.BeginCompound("emptyCompound");
+        writer.BeginCompound("emptyCompound"u8);
         writer.EndCompound();
-        writer.BeginList("emptyList", NbtTagType.Byte, 0);
+        writer.BeginList("emptyList"u8, NbtTagType.Byte, 0);
         writer.EndList();
         writer.EndCompound();
         return buf[..writer.Written].ToArray();

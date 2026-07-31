@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Verstack.Core;
+namespace Verstack.Lifecycle;
 
 public class ServerTime
 {

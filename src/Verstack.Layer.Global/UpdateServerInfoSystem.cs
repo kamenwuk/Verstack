@@ -1,6 +1,6 @@
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
-using Verstack.Core;
+using Verstack.Lifecycle;
 
 namespace Verstack.Layer.Global;
 

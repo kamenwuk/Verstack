@@ -1,32 +1,22 @@
-using Verstack.Layer.Gateway;
-using Verstack.Layer.Global;
-using Verstack.Layer.Realm;
+using Verstack.Network.Compression;
 using Leopotam.EcsProto;
 using Verstack.Network;
 using Verstack.Debug;
-using Verstack.Core;
-using Verstack.Network.Compression;
-using Verstack.Network.Packet;
 
-namespace Verstack.Bootstrap;
+namespace Verstack.Lifecycle;
 
 public sealed class EntryPoint
 {
-    private ProtoSystems _globalSystems;
-    private ProtoSystems _gatewaySystems;
-    // Может быть null, если у Realm нет аспектов — мир не создаётся. Проверяем через ?. перед использованием.
-    private ProtoSystems _realmSystems;
-        
-    private ServerTime _serverTime;
-    private TcpNetworkService _tcpNetworkService;
+    private ServerTime _serverTime = null!;
+    private TcpNetworkService _tcpNetworkService = null!;
+    private ProtoSystems[] _layers = null!;
         
     private bool _isRunning;
     private volatile bool _isStopped = false;
     
     private readonly CancellationTokenSource _stopCts = new();
-    
-    
-    public void Start(int port)
+
+    public void Start(int port, params ServerFeatureLayer[] layers)
     {
         Logger.Info(LogKey.ServerStart, port);
         
@@ -34,22 +24,15 @@ public sealed class EntryPoint
         _serverTime = new ServerTime();
         _tcpNetworkService = new TcpNetworkService(new ZLibPacketDecompressor());
 
-        var composer = new ServerComposer(new GlobalFeature(),
-                new GatewayFeature(), new RealmFeature())
+        var composer = new ServerComposer(layers)
             .AddService(_serverTime)
             .AddService(_tcpNetworkService)
             .AddService(new ZLibPacketCompressor());
 
-        var (globalSystems, gatewaySystems, realmSystems) = composer.Compose();
+        _layers = composer.Compose();
 
-        _globalSystems = globalSystems;
-        _gatewaySystems = gatewaySystems;
-        _realmSystems = realmSystems;
-
-        // 3. Инициализация всех ECS систем
-        _globalSystems.Init();
-        _gatewaySystems.Init();
-        _realmSystems?.Init();
+        foreach (var layer in _layers)
+            layer.Init();
 
         // 4. Запуск TCP-слушателя в фоновом потоке
         _tcpNetworkService.Start(port);
@@ -67,9 +50,8 @@ public sealed class EntryPoint
             {
                 try
                 {
-                    _globalSystems.Run();
-                    _gatewaySystems.Run();
-                    _realmSystems?.Run();
+                    foreach (var layer in _layers)
+                        layer.Run();
                 }
                 catch (Exception ex)
                 {
@@ -101,25 +83,14 @@ public sealed class EntryPoint
         _stopCts.Cancel();
         _tcpNetworkService?.Stop();
 
-        // Уничтожаем миры в обратном порядке зависимостей: Realm (видит всех) → Gateway → Global.
-        if (_realmSystems is not null)
+        foreach (var layer in _layers)
         {
-            var world = _realmSystems.World();
+            var world = layer.World();
             world.Destroy();
-            _realmSystems.Destroy();
+            layer.Destroy();
         }
 
-        {
-            var world = _gatewaySystems.World();
-            world.Destroy();
-            _gatewaySystems?.Destroy();
-        }
-        
-        {
-            var world = _globalSystems.World();
-            world.Destroy();
-            _globalSystems?.Destroy();
-        }
+        _layers = [];
         
         Logger.Info(LogKey.ServerStopped);
     }

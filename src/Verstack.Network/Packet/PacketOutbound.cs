@@ -55,4 +55,13 @@ public ref struct PacketOutbound(NetworkChannel channel, IPacketCompressor compr
 
     /// <summary>Обнуляет framing-offset — переиспользование на следующей сущности.</summary>
     public void Reset() => _frameOffset = 0;
+    
+    public void Flush()
+    {
+        if (Written > 0)
+        {
+            channel.EnqueueOutbound(WrittenSpan);
+            Reset(); // Сброс курсора frameScratch в 0
+        }
+    }
 }

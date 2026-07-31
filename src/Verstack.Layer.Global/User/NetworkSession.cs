@@ -1,6 +1,6 @@
-namespace Verstack.Layer.Gateway;
+namespace Verstack.Layer.Global.User;
 
-internal readonly struct NetworkSession(int protocolVersion, string ipAddress, string serverAddress, ushort serverPort)
+public readonly struct NetworkSession(int protocolVersion, string ipAddress, string serverAddress, ushort serverPort)
 {
     public readonly int ProtocolVersion = protocolVersion;
     public readonly string IpAddress = ipAddress;

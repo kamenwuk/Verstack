@@ -1,6 +1,6 @@
-namespace Verstack.Core;
+namespace Verstack.Lifecycle;
 
-public static class WorldScopes
+public static class ServerWorldScopes
 {
     public const string GLOBAL = "global";
     public const string GATEWAY = "gateway";

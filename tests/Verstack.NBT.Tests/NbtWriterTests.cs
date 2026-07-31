@@ -26,7 +26,7 @@ public class NbtWriterTests
         w.BeginRootCompound();
         w.EndCompound();
 
-        Assert.Equal(ParseHex("0A 00"), w.WrittenSpan.ToArray());
+        Assert.Equal(ParseHex("0A 00"), w.Finish().ToArray());
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public class NbtWriterTests
         w.BeginRootCompound();
         w.EndCompound();
 
-        Assert.Equal(ParseHex("0A 00 00 00"), w.WrittenSpan.ToArray());
+        Assert.Equal(ParseHex("0A 00 00 00"), w.Finish().ToArray());
     }
 
     // ─────────────────────  Скаляры в Compound  ─────────────────────
@@ -57,16 +57,16 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.WriteInt("count", 42);
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteInt("count"u8, 42)
+        .EndCompound();
 
         // 0A                         root compound (networked)
         // 03                         TAG_Int
         // 00 05 63 6F 75 6E 74       Short=5 + "count"
         // 00 00 00 2A                42 BE
         // 00                         TAG_End
-        Assert.Equal(ParseHex("0A 03 00 05 63 6F 75 6E 74 00 00 00 2A 00"), w.WrittenSpan.ToArray());
+        Assert.Equal(ParseHex("0A 03 00 05 63 6F 75 6E 74 00 00 00 2A 00"), w.Finish().ToArray());
     }
 
     /// <summary>
@@ -79,16 +79,16 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.WriteByte("b", 1);          // TAG_Byte
-        w.WriteShort("s", 2);         // TAG_Short
-        w.WriteInt("i", 3);           // TAG_Int
-        w.WriteLong("l", 4);          // TAG_Long
-        w.WriteFloat("f", 1.0f);      // TAG_Float (1.0f = 0x3F800000)
-        w.WriteDouble("d", 1.0);      // TAG_Double (1.0 = 0x3FF0000000000000)
-        w.WriteString("S", "hi");     // TAG_String
-        w.WriteBool("B", true);       // TAG_Byte (bool → 0x01)
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteByte("b"u8, 1)          // TAG_Byte
+            .WriteShort("s"u8, 2)         // TAG_Short
+            .WriteInt("i"u8, 3)           // TAG_Int
+            .WriteLong("l"u8, 4)          // TAG_Long
+            .WriteFloat("f"u8, 1.0f)      // TAG_Float (1.0f = 0x3F800000)
+            .WriteDouble("d"u8, 1.0)      // TAG_Double (1.0 = 0x3FF0000000000000)
+            .WriteString("S"u8, "hi"u8)     // TAG_String
+            .WriteBool("B"u8, true)       // TAG_Byte (bool → 0x01)
+        .EndCompound();
 
         Assert.Equal(ParseHex(
             "0A"                                                    // root
@@ -101,7 +101,7 @@ public class NbtWriterTests
             + " 08 00 01 53 00 02 68 69"                            // String("S", "hi")
             + " 01 00 01 42 01"                                     // Bool("B", true)
             + " 00"),                                               // TAG_End
-            w.WrittenSpan.ToArray());
+            w.Finish().ToArray());
     }
 
     // ─────────────────────  Вложенный Compound  ─────────────────────
@@ -113,11 +113,11 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.BeginCompound("nested");
-        w.WriteBool("flag", true);
-        w.EndCompound();
-        w.EndCompound();
+        w.BeginRootCompound()
+            .BeginCompound("nested"u8)
+                .WriteBool("flag"u8, true)
+            .EndCompound()
+        .EndCompound();
 
         // 0A                              root (networked)
         // 0A 00 06 6E 65 73 74 65 64      nested compound: type + Short=6 + "nested"
@@ -125,7 +125,7 @@ public class NbtWriterTests
         // 00                              end nested
         // 00                              end root
         Assert.Equal(ParseHex("0A 0A 00 06 6E 65 73 74 65 64 01 00 04 66 6C 61 67 01 00 00"),
-            w.WrittenSpan.ToArray());
+            w.Finish().ToArray());
     }
 
     // ─────────────────────  List скаляров  ─────────────────────
@@ -140,12 +140,12 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.BeginList("items", NbtTagType.String, 2);
-        w.WriteString("a");
-        w.WriteString("b");
-        w.EndList();
-        w.EndCompound();
+        w.BeginRootCompound()
+            .BeginList("items"u8, NbtTagType.String, 2)
+                .WriteListItemString("a"u8)
+                .WriteListItemString("b"u8)
+            .EndList()
+        .EndCompound();
 
         // 0A                              root
         // 09 00 05 69 74 65 6D 73         List: type + Short=5 + "items"
@@ -155,7 +155,7 @@ public class NbtWriterTests
         // 00 01 62                        "b"
         // 00                              end root (EndList ничего не пишет)
         Assert.Equal(ParseHex("0A 09 00 05 69 74 65 6D 73 08 00 00 00 02 00 01 61 00 01 62 00"),
-            w.WrittenSpan.ToArray());
+            w.Finish().ToArray());
     }
 
     // ─────────────────────  List контейнеров (безымянные перегрузки)  ─────────────────────
@@ -171,16 +171,16 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.BeginList("rows", NbtTagType.Compound, 2);
-        w.BeginCompound();           // безымянный: только push frame, БЕЗ type-байта
-        w.WriteInt("id", 1);
-        w.EndCompound();
-        w.BeginCompound();
-        w.WriteInt("id", 2);
-        w.EndCompound();
-        w.EndList();
-        w.EndCompound();
+        w.BeginRootCompound()
+            .BeginList("rows"u8, NbtTagType.Compound, 2)
+                .BeginCompound()           // безымянный: только push frame, БЕЗ type-байта
+                    .WriteInt("id"u8, 1)
+                .EndCompound()
+                .BeginCompound()
+                    .WriteInt("id"u8, 2)
+                .EndCompound()
+            .EndList()
+        .EndCompound();
 
         // 0A                              root
         // 09 00 04 72 6F 77 73 0A         List: type + Short=4 + "rows" + elementType=Compound
@@ -195,7 +195,7 @@ public class NbtWriterTests
             + " 09 00 04 72 6F 77 73 0A 00 00 00 02"
             + " 03 00 02 69 64 00 00 00 01 00"
             + " 03 00 02 69 64 00 00 00 02 00"
-            + " 00"), w.WrittenSpan.ToArray());
+            + " 00"), w.Finish().ToArray());
     }
 
     // ─────────────────────  Полный пример из брифа  ─────────────────────
@@ -211,17 +211,17 @@ public class NbtWriterTests
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
         var w = new NbtWriter(buffer, frames);
 
-        w.BeginRootCompound();
-        w.WriteString("name", "value");
-        w.WriteInt("count", 42);
-        w.BeginCompound("nested");
-        w.WriteBool("flag", true);
-        w.EndCompound();
-        w.BeginList("items", NbtTagType.String, 2);
-        w.WriteString("a");
-        w.WriteString("b");
-        w.EndList();
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteString("name"u8, "value"u8)
+            .WriteInt("count"u8, 42)
+            .BeginCompound("nested"u8)
+                .WriteBool("flag"u8, true)
+            .EndCompound()
+            .BeginList("items"u8, NbtTagType.String, 2)
+                .WriteListItemString("a"u8)
+                .WriteListItemString("b"u8)
+            .EndList()
+        .EndCompound();
 
         Assert.Equal(ParseHex(
             "0A"                                                                    // root
@@ -234,7 +234,7 @@ public class NbtWriterTests
             + " 00 01 61"                                                          // "a"
             + " 00 01 62"                                                          // "b"
             + " 00"),                                                              // end root
-            w.WrittenSpan.ToArray());
+            w.Finish().ToArray());
     }
 
     // ─────────────────────  Хелпер  ─────────────────────

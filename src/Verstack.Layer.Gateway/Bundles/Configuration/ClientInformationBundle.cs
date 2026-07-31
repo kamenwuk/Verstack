@@ -1,10 +1,11 @@
-using System.Buffers;
-using Leopotam.EcsProto;
-using Leopotam.EcsProto.QoL;
-using Verstack.Core;
-using Verstack.Debug;
+using Verstack.Layer.Global.User;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
+using Leopotam.EcsProto.QoL;
+using Verstack.Lifecycle;
+using Leopotam.EcsProto;
+using System.Buffers;
+using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -23,7 +24,7 @@ internal sealed class ClientInformationBundle : PacketBundle
 
     public override void Init(IProtoSystems systems)
     {
-        var world = systems.NamedWorlds()[WorldScopes.GATEWAY];
+        var world = systems.NamedWorlds()[ServerWorldScopes.GATEWAY];
         _cache = world.Aspect<GatewayCacheStore>();
     }
 

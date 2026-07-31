@@ -1,12 +1,12 @@
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
-using Verstack.Core;
+using Verstack.Lifecycle;
 
 namespace Verstack.Layer.Global;
 
-public sealed class GlobalFeature : VerstackFeature
+public sealed class GlobalLayer : ServerFeatureLayer
 {
-    public override string Scope => WorldScopes.GLOBAL;
+    public override string Scope => ServerWorldScopes.GLOBAL;
 
     public override void Init(IProtoSystems systems)
     {
@@ -20,5 +20,7 @@ public sealed class GlobalFeature : VerstackFeature
             new ServerInfoCacheStore("A Minecraft Server", 100, "26.2", 776)
         ];
     }
+
+    protected override void GetVisibleScopes(ICollection<string> scopes) { }
 }
 

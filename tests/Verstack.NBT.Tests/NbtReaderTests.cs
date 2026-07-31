@@ -590,12 +590,12 @@ public class NbtReaderTests
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
         var w = new NbtWriter(written, wframes);
-        w.BeginRootCompound();
-        w.WriteByteArray("data", new byte[] { 1, 2, 3 });
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteByteArray("data"u8, [1, 2, 3])
+        .EndCompound();
 
         // Читаем.
-        var r = new NbtReader(w.WrittenSpan, wframes);   // переиспользуем frames-буфер
+        var r = new NbtReader(w.Finish(), wframes);   // переиспользуем frames-буфер
         r.EnterRootCompound();
         Assert.True(r.TryReadByteArray("data"u8, out ReadOnlySpan<byte> value));
         Assert.Equal(new byte[] { 1, 2, 3 }, value.ToArray());
@@ -614,11 +614,11 @@ public class NbtReaderTests
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
         var w = new NbtWriter(written, wframes);
-        w.BeginRootCompound();
-        w.WriteIntArray("ids", new int[] { 1000001, 2000002, 3000003 });
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteIntArray("ids"u8, [1000001, 2000002, 3000003])
+        .EndCompound();
 
-        var r = new NbtReader(w.WrittenSpan, wframes);
+        var r = new NbtReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Span<int> dest = stackalloc int[8];   // больше, чем в потоке — лишнее не трогается
         Assert.True(r.TryReadIntArray("ids"u8, dest, out int count));
@@ -640,11 +640,11 @@ public class NbtReaderTests
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
         var w = new NbtWriter(written, wframes);
-        w.BeginRootCompound();
-        w.WriteLongArray("positions", new long[] { 0x0102030405060708L, -5L });
-        w.EndCompound();
+        w.BeginRootCompound()
+            .WriteLongArray("positions"u8, [0x0102030405060708L, -5L])
+        .EndCompound();
 
-        var r = new NbtReader(w.WrittenSpan, wframes);
+        var r = new NbtReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Span<long> dest = stackalloc long[4];
         Assert.True(r.TryReadLongArray("positions"u8, dest, out int count));
@@ -666,14 +666,14 @@ public class NbtReaderTests
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
         var w = new NbtWriter(written, wframes);
-        w.BeginRootCompound();
-        w.BeginList("rows", NbtTagType.ByteArray, 2);
-        w.WriteByteArray(new byte[] { 10 });
-        w.WriteByteArray(new byte[] { 20, 30 });
-        w.EndList();
-        w.EndCompound();
+        w.BeginRootCompound()
+            .BeginList("rows"u8, NbtTagType.ByteArray, 2)
+            .WriteByteArray([10])
+            .WriteByteArray([20, 30])
+            .EndList()
+        .EndCompound();
 
-        var r = new NbtReader(w.WrittenSpan, wframes);
+        var r = new NbtReader(w.Finish(), wframes);
         r.EnterRootCompound();
         r.ReadTagName(out var t, out _);
         Assert.Equal(NbtTagType.List, t);
@@ -700,11 +700,12 @@ public class NbtReaderTests
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
         var w = new NbtWriter(written, wframes);
-        w.BeginRootCompound();
-        w.WriteInt("x", 1);
-        w.EndCompound();
 
-        var r = new NbtReader(w.WrittenSpan, wframes);
+        w.BeginRootCompound()
+            .WriteInt("x"u8, 1)
+        .EndCompound();
+
+        var r = new NbtReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Assert.False(r.TryReadByteArray("missing"u8, out ReadOnlySpan<byte> value));
         Assert.True(value.IsEmpty);

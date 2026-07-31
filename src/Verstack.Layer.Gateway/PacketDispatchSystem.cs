@@ -1,26 +1,43 @@
+using Verstack.Layer.Gateway.Bundles;
 using Verstack.Network.Compression;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 using System.Buffers;
 using Verstack.Debug;
+using Verstack.Layer.Realm.User;
+using Verstack.Lifecycle;
 
 namespace Verstack.Layer.Gateway;
 
-internal sealed class PacketDispatchSystem : IProtoRunSystem
+internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
 {
     [DI] private readonly GatewayCacheStore _gatewayCacheStore = null!;
-    [DI] private readonly GatewayPacketPipeline _pipeline = null!;
     [DI] private readonly ZLibPacketCompressor _compressor = null!;
+    [DI(ServerWorldScopes.REALM)] private readonly UserSessionCacheStore _userSessionCacheStore = null!;
 
     // Буферы арендуются один раз на весь Run, возвращаются в finally (heap → GC-free на cold path).
     //   frameScratch   — framing-выход, contiguous, растёт вправо от 0. Отправляется в канал.
     //   payloadBuffer  — временный буфер под payload текущего пакета; бандл пишет в него через SpanWriter.
-    // Размеры покрывают Login (payload ~60 байт, framing ~70) с запасом под Configuration (Registry Data ~KB).
-    // Для Play-чанков этого мало — TODO: динамический размер или flush-на-пакет.
+    // Увеличено для поддержки больших пакетов Registry Data (до 16 КБ).
     private const int FRAME_SCRATCH_SIZE = 16 * 1024;
-    private const int PAYLOAD_BUFFER_SIZE = 4 * 1024;
+    private const int PAYLOAD_BUFFER_SIZE = 16 * 1024;   // было 4*1024, теперь 16 КБ
 
+    private PacketPipeline _pipeline = null!;
+    
+    public void Init(IProtoSystems systems)
+    {
+        _pipeline = new PacketPipeline(systems, [
+            new StatusExchangeBundle(),
+            new PingPongBundle(),
+            new LoginStartBundle(),          // ← индекс 2
+            new LoginAcknowledgedBundle(),   // ← индекс 3
+            new ClientInformationBundle(),   // ← индекс 4 (Configuration)
+            new KnownPacksBundle(),          // ← индекс 5
+            new ConfigurationFinishBundle()  // ← индекс 6
+        ]);
+    }
+    
     public void Run()
     {
         byte[] frameArray = ArrayPool<byte>.Shared.Rent(FRAME_SCRATCH_SIZE);
@@ -44,6 +61,7 @@ internal sealed class PacketDispatchSystem : IProtoRunSystem
                 bool disconnect = false;
 
                 var outbound = new PacketOutbound(channel, _compressor, frameScratch, payloadBuffer);
+                PacketHandleResult result;
                 while (channel.IncomingPackets.TryDequeue(out var rawPacket))
                 {
                     if (flowState.BundleIndex >= _pipeline.BundleCount)
@@ -52,26 +70,42 @@ internal sealed class PacketDispatchSystem : IProtoRunSystem
                         break;
                     }
 
-                    if (!_pipeline.TryProcessPacket(entity, rawPacket, ref outbound, ref flowState))
+                    do
                     {
-                        Logger.Warn(LogKey.GatewayPacketRejected, (int)entity);
-                        disconnect = true;
-                        break;
-                    }
+                        result = _pipeline.TryProcessPacket(entity, rawPacket, ref outbound, ref flowState);
+
+                        if (outbound.Written > 0)
+                        {
+                            channel.EnqueueOutbound(outbound.WrittenSpan);
+                            outbound.Reset();
+                        }
+                    } while (result == PacketHandleResult.Continue);
+                    
+                    if (result != PacketHandleResult.Kick) 
+                        continue;
+                    
+                    Logger.Warn(LogKey.GatewayPacketRejected, (int)entity);
+                    disconnect = true;
+                    break;
                 }
 
                 if (flowState.BundleIndex >= _pipeline.BundleCount)
-                    disconnect = true;
+                {
+                    var user = _gatewayCacheStore.UserProfiles.Get(entity);
+                    var session = _gatewayCacheStore.Sessions.Get(entity);
+                    
+                    // Логируем трансфер
+                    Logger.Info(LogKey.PacketRealmTransfer, user.Username);
+                    
+                    _userSessionCacheStore.Transfer(user, session, channel);
+                    
+                    _gatewayCacheStore.World().DelEntity(entity);
+                    _gatewayCacheStore.RemoveChannel(channel);
+                    continue;
+                }
 
-                // Сначала — отправка всего, что бандлы записали в frameScratch.
-                if (outbound.Written > 0)
-                    channel.EnqueueOutbound(outbound.WrittenSpan);
-
-                // Потом — разрыв, если он был запрошен. Disconnect идемпотентен (CompareExchange-флаг).
                 if (disconnect)
                     channel.Disconnect();
-
-                outbound.Reset();
             }
         }
         finally

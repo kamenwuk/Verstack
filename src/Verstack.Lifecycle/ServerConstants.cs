@@ -1,4 +1,4 @@
-namespace Verstack.Layer.Global;
+namespace Verstack.Lifecycle;
 
 /// <summary>
 /// Базовые неизменяемые константы сервера.

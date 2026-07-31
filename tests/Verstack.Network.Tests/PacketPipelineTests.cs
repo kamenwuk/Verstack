@@ -17,8 +17,8 @@ public sealed class PacketPipelineTests
             new byte[1024],
             new byte[512]);
 
-        bool result = pipeline.TryProcessPacket(default, rawPacket, ref outbound, ref state);
-        Assert.True(result);
+        var result = pipeline.TryProcessPacket(default, rawPacket, ref outbound, ref state);
+        Assert.True(result == PacketHandleResult.Accepted);
         Assert.Equal(1, state.BundleIndex);   // перешли на следующий бандл
         Assert.Equal(0, state.StepIndex);     // сброшен
     }

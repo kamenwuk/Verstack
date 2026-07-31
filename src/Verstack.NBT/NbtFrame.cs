@@ -25,7 +25,7 @@ public struct NbtFrame
 
     /// <summary>
     /// Для List — сколько элементов ещё ждёт заголовок. Декрементируется на каждом безымянном <c>WriteXxx</c>/
-    /// <c>Begin*</c>; <see cref="NbtWriter.EndList"/> валидирует, что остаток 0.
+    /// <c>Begin*</c>; <see cref="NbtWriter.EndListInternal"/> валидирует, что остаток 0.
     /// </summary>
     public int ListRemaining;
 }

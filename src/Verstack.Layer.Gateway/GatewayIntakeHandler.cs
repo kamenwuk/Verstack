@@ -1,18 +1,16 @@
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
-using Verstack.Layer.Global;
 using System.Buffers;
-using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway
 {
-    public class GatewayIntakeHandler
+    internal static class GatewayIntakeHandler
     {
         /// <summary>
         /// Парсит первый пакет (Handshake) от клиента.
         /// </summary>
         /// <returns>1 - Status, 2 - Login, -1 - Ошибка (Кик)</returns>
-        public int TryParseHandshake(in RawPacket packet, out (int protocolVersion, string serverAddress, ushort serverPort) data)
+        public static int TryParseHandshake(in RawPacket packet, out (int protocolVersion, string serverAddress, ushort serverPort) data)
         {
             data.protocolVersion = 0;
             data.serverAddress = string.Empty;

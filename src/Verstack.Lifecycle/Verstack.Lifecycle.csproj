@@ -3,11 +3,12 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>disable</Nullable>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
+      <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
     </ItemGroup>
 
 </Project>

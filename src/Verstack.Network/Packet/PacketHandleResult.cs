@@ -22,5 +22,7 @@ public enum PacketHandleResult
     /// <summary>
     /// Пакет невалиден для текущего шага — кик клиента.
     /// </summary>
-    Kick
+    Kick,
+    
+    Continue
 }

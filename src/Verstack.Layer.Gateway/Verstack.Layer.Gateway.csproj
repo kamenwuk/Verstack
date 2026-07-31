@@ -7,10 +7,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
-      <ProjectReference Include="..\Verstack.Core\Verstack.Core.csproj" />
-      <ProjectReference Include="..\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
-      <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+        <ProjectReference Include="..\Verstack.Layer.Realm\Verstack.Layer.Realm.csproj" />
+        <ProjectReference Include="..\Verstack.NBT\Verstack.NBT.csproj" />
+        <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
+        <ProjectReference Include="..\Verstack.Lifecycle\Verstack.Lifecycle.csproj" />
+        <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+        <ProjectReference Include="..\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,9 +1,9 @@
 using Verstack.Network.DataTypes;
+using Verstack.Layer.Global.User;
 using Verstack.Network.Packet;
-using Verstack.Layer.Global;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
-using Verstack.Core;
+using Verstack.Lifecycle;
 using Verstack.Debug;
 using System.Buffers;
 
@@ -26,7 +26,7 @@ internal sealed class LoginStartBundle : PacketBundle
 
     public override void Init(IProtoSystems systems)
     {
-        var world = systems.NamedWorlds()[WorldScopes.GATEWAY];
+        var world = systems.NamedWorlds()[ServerWorldScopes.GATEWAY];
         _cache = world.Aspect<GatewayCacheStore>();
     }
 
@@ -40,7 +40,7 @@ internal sealed class LoginStartBundle : PacketBundle
         _ = Uuid.Read(ref reader); // UUID клиента игнорируем: offline-режим генерирует свой
 
         Guid offlineUuid = Uuid.GenerateOfflinePlayer(name);
-        _cache.UserProfiles.GetOrAdd(entity) = new UserProfile(offlineUuid, name);
+        _cache.UserProfiles.GetOrAdd(entity) = new UserProfile(offlineUuid, name, "none");
 
         Logger.Debug(LogKey.PacketLoginStart, name);
 

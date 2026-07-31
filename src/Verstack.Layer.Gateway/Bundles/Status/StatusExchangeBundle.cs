@@ -1,10 +1,10 @@
-using Leopotam.EcsProto;
-using Leopotam.EcsProto.QoL;
-using Verstack.Core;
-using Verstack.Debug;
-using Verstack.Layer.Global;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
+using Leopotam.EcsProto.QoL;
+using Verstack.Layer.Global;
+using Verstack.Lifecycle;
+using Leopotam.EcsProto;
+using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -16,7 +16,7 @@ internal sealed class StatusExchangeBundle : PacketBundle
 
     public override void Init(IProtoSystems systems)
     {
-        var world = systems.NamedWorlds()[WorldScopes.GLOBAL];
+        var world = systems.NamedWorlds()[ServerWorldScopes.GLOBAL];
         _serverInfo = world.Aspect<ServerInfoCacheStore>();
     }
 

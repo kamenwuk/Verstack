@@ -1,8 +1,8 @@
-using System.Buffers;
-using Leopotam.EcsProto;
-using Verstack.Debug;
 using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
+using Leopotam.EcsProto;
+using System.Buffers;
+using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
