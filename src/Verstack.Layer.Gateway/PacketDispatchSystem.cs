@@ -1,19 +1,17 @@
 using Verstack.Layer.Gateway.Bundles;
 using Verstack.Network.Compression;
-using Verstack.Layer.Realm.User;
+using Verstack.Network.Lifecycle;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
-using Verstack.Lifecycle;
 using Leopotam.EcsProto;
-using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway;
 
 internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
 {
     [DI] private readonly GatewayCacheStore _gatewayCacheStore = null!;
+    [DI] private readonly NetworkHandoffCacheStore _networkHandoffCacheStore = null!;
     [DI] private readonly ZLibPacketCompressor _compressor = null!;
-    [DI(ServerWorldScopes.REALM)] private readonly UserSessionCacheStore _userSessionCacheStore = null!;
 
     private PacketPipeline _pipeline = null!;
     
@@ -32,11 +30,10 @@ internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
     
     public void Run()
     {
-        foreach (var entity in _gatewayCacheStore.Sessions)
+        foreach (var entity in _gatewayCacheStore.ActiveSessionsFilter)
         {
-            var channel = _gatewayCacheStore.GetChannel((int)entity);
-            if (channel == null)
-                continue;
+            var channel = _networkHandoffCacheStore.GetChannel((int)entity);
+            if (channel == null) continue;
 
             ref var flowState = ref _gatewayCacheStore.FlowStates.Get(entity);
 
@@ -44,20 +41,16 @@ internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
 
             if (status == PipelineSessionStatus.Transfer)
             {
-                var user = _gatewayCacheStore.UserProfiles.Get(entity);
-                var session = _gatewayCacheStore.Sessions.Get(entity);
-                
-                Logger.Info(LogKey.PacketRealmTransfer, user.Username);
-                
-                _userSessionCacheStore.Transfer(user, session, channel);
-                
-                _gatewayCacheStore.World().DelEntity(entity);
-                _gatewayCacheStore.RemoveChannel(channel);
+                // Пайплайн завершил конфигурацию. 
+                // Мы НИЧЕГО не делаем. GatewayNetworkHandoffPolicy в NetworkCleanupSystem
+                // увидит, что FlowState дошел до конца, и сама перенесет игрока в Realm.
                 continue;
             }
 
             if (status == PipelineSessionStatus.Kick)
             {
+                // Нарушение протокола. Рвем соединение. 
+                // Сеть сообщит роутеру, вешается NetworkDisconnectedState, сущность удалится.
                 channel.Disconnect();
             }
         }

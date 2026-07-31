@@ -1,6 +1,7 @@
-﻿using Leopotam.EcsProto;
+﻿using Verstack.Network.Lifecycle;
 using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
+using Leopotam.EcsProto;
 
 namespace Verstack.Layer.Gateway;
 
@@ -27,4 +28,8 @@ public sealed class GatewayLayer : ServerFeatureLayer
         scopes.Add(ServerWorldScopes.GLOBAL);
         scopes.Add(ServerWorldScopes.REALM);
     }
+
+    protected override string GetNextScope() => ServerWorldScopes.REALM;
+    
+    protected override NetworkHandoffPolicy GetHandoffPolicy() => new GatewayNetworkHandoffPolicy();
 }

@@ -1,6 +1,5 @@
-using Verstack.Network.Compression;
+using Verstack.Network.Lifecycle;
 using Leopotam.EcsProto;
-using Verstack.Network;
 using Verstack.Debug;
 
 namespace Verstack.Lifecycle;
@@ -8,7 +7,6 @@ namespace Verstack.Lifecycle;
 public sealed class EntryPoint
 {
     private ServerTime _serverTime = null!;
-    private TcpNetworkService _tcpNetworkService = null!;
     private ProtoSystems[] _layers = null!;
         
     private bool _isRunning;
@@ -16,26 +14,28 @@ public sealed class EntryPoint
     
     private readonly CancellationTokenSource _stopCts = new();
 
-    public void Start(int port, params ServerFeatureLayer[] layers)
+    public void Start(int port, ServerFeatureLayer globalLayer, params ServerFeatureLayer[] layers)
     {
         Logger.Info(LogKey.ServerStart, port);
+
+        var netHubModule = new NetworkHubModule(port, ServerWorldScopes.GATEWAY);
         
+        netHubModule.AddLayer(ServerWorldScopes.GATEWAY, ServerWorldScopes.REALM);
+        netHubModule.AddLayer(ServerWorldScopes.REALM, null);
         // 1. Инициализация базовых сервисов
         _serverTime = new ServerTime();
-        _tcpNetworkService = new TcpNetworkService(new ZLibPacketDecompressor());
 
-        var composer = new ServerComposer(layers)
-            .AddService(_serverTime)
-            .AddService(_tcpNetworkService)
-            .AddService(new ZLibPacketCompressor());
+        var composer = new ServerComposer(globalLayer, netHubModule, layers)
+            .AddService(_serverTime);
 
         _layers = composer.Compose();
 
         foreach (var layer in _layers)
+        {
             layer.Init();
+        }
 
         // 4. Запуск TCP-слушателя в фоновом потоке
-        _tcpNetworkService.Start(port);
         Logger.Info(LogKey.ServerStarted);
         // 5. Запуск главного цикла (Tick Loop)
         _isRunning = true;
@@ -81,7 +81,6 @@ public sealed class EntryPoint
         Logger.Warn(LogKey.ServerStop);
         _isRunning = false;
         _stopCts.Cancel();
-        _tcpNetworkService?.Stop();
 
         foreach (var layer in _layers)
         {

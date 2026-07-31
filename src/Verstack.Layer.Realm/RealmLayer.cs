@@ -1,8 +1,9 @@
-﻿using Leopotam.EcsProto.QoL;
-using Leopotam.EcsProto;
-using Verstack.Layer.Realm.Systems;
+﻿using Verstack.Layer.Realm.Systems;
+using Verstack.Network.Lifecycle;
 using Verstack.Layer.Realm.User;
+using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
+using Leopotam.EcsProto;
 
 namespace Verstack.Layer.Realm;
 
@@ -27,4 +28,8 @@ public sealed class RealmLayer : ServerFeatureLayer
     {
         scopes.Add(ServerWorldScopes.GLOBAL);
     }
+
+    protected override string GetNextScope() => string.Empty;
+
+    protected override NetworkHandoffPolicy GetHandoffPolicy() => new RealmNetworkHandoffPolicy();
 }

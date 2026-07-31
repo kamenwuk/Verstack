@@ -1,3 +1,4 @@
+using Verstack.Network.Lifecycle;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 
@@ -15,4 +16,8 @@ public abstract class ServerFeatureLayer
     public abstract ProtoAspectInject[] GetCacheStores();
 
     protected internal abstract void GetVisibleScopes(ICollection<string> scopes);
+
+    protected internal abstract string GetNextScope();
+    
+    protected internal abstract NetworkHandoffPolicy GetHandoffPolicy();
 }

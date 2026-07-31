@@ -1,6 +1,7 @@
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 using Verstack.Lifecycle;
+using Verstack.Network.Lifecycle;
 
 namespace Verstack.Layer.Global;
 
@@ -22,5 +23,8 @@ public sealed class GlobalLayer : ServerFeatureLayer
     }
 
     protected override void GetVisibleScopes(ICollection<string> scopes) { }
+
+    protected override string GetNextScope() => string.Empty;
+    protected override NetworkHandoffPolicy GetHandoffPolicy() => null;
 }
 

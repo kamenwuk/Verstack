@@ -1,8 +1,6 @@
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 
-#nullable enable
-
 namespace Verstack.Lifecycle;
 
 /// <summary>
@@ -10,7 +8,8 @@ namespace Verstack.Lifecycle;
 /// </summary>
 public static class ServerFeatureExtensions
 {
-    public static ProtoSystems BuildSystems(this ServerFeatureLayer featureLayer, IEnumerable<object> services)
+    public static ProtoSystems BuildSystems(this ServerFeatureLayer featureLayer, IEnumerable<object> services,
+        params IProtoModule[] addition)
     {
         var cacheStores = featureLayer.GetCacheStores();
         if (cacheStores is null or { Length: 0 })
@@ -19,6 +18,9 @@ public static class ServerFeatureExtensions
         var modules = new ProtoModules();
         modules.AddModule(new AutoInjectModule(true));
 
+        foreach (var module in addition)
+            modules.AddModule(module);
+            
         foreach (var aspect in cacheStores)
             modules.AddAspect(aspect);
 

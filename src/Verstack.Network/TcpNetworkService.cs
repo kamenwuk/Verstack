@@ -1,47 +1,42 @@
-using System.Collections.Concurrent;
 using Verstack.Network.Compression;
+using Verstack.Network.Lifecycle;
 using Verstack.Network.Packet;
+using Leopotam.EcsProto.QoL;
 using System.IO.Pipelines;
 using System.Net.Sockets;
+using Leopotam.EcsProto;
 using Verstack.Debug;
 using System.Buffers;
 using System.Net;
 
 namespace Verstack.Network
 {
-    public class TcpNetworkService
+    internal sealed class TcpNetworkService : IProtoInitService, IProtoDestroyService
     {
-        // Очередь новых подключений
-        public ConcurrentQueue<NetworkChannel> PendingConnections { get; } = new();
-
-        // Очередь ОТКЛЮЧЕННЫХ каналов (События смерти)
-        public ConcurrentQueue<NetworkChannel> DisconnectedChannels { get; } = new();
-
-        // Декомпрессор для read-фрейминга. null — compression не настроена.
-        // Передаётся через конструктор из EntryPoint; не ECS-сервис — нужен только read-потоку.
-        private readonly IPacketDecompressor _decompressor;
-
+        [DI] private readonly NetworkHandoffRouter _handoffRouter = null!;
+        [DI] private readonly ZLibPacketDecompressor _decompressor = null!;
+        
+        private readonly int _port;
+        
         private CancellationTokenSource _cts;
         private Socket _listener;
         
-        /// <param name="decompressor">Декомпрессор пакетов. Если null — сжатые кадры
-        /// будут отброшены как Malformed (см. <see cref="PacketFrame.TryRead"/>).</param>
-        public TcpNetworkService(IPacketDecompressor decompressor = null)
+        internal TcpNetworkService(int port)
         {
-            _decompressor = decompressor;
+            _port = port;
         }
         
-        public void Start(int port)
+        public void Init(IProtoSystems systems)
         {
             _cts = new CancellationTokenSource();
             _listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            _listener.Bind(new IPEndPoint(IPAddress.Any, port));
+            _listener.Bind(new IPEndPoint(IPAddress.Any, _port));
             _listener.Listen(100);
 
             _ = AcceptLoopAsync(_cts.Token);
         }
 
-        public void Stop()
+        public void Destroy()
         {
             _cts?.Cancel();
             _listener?.Close();
@@ -58,7 +53,7 @@ namespace Verstack.Network
 
                     var channel = new NetworkChannel(client);
                     // Просто кидаем новый канал в очередь. Никаких Handshake!
-                    PendingConnections.Enqueue(channel);
+                    _handoffRouter.HandleConnect(channel);
 
                     // Запускаем read-цикл и send-цикл параллельно: каждый живёт до отключения канала.
                     _ = ProcessClientAsync(channel, cts);
@@ -122,7 +117,7 @@ namespace Verstack.Network
             finally
             {
                 channel.Disconnect();
-                DisconnectedChannels.Enqueue(channel);
+                _handoffRouter.HandleDisconnect(channel);
             }
         }
 
