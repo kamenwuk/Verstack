@@ -7,11 +7,6 @@ using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway;
 
-/// <summary>
-/// Управляет гостевыми подключениями (до создания ECS-сущности).
-/// Очищает мёртвые соединения, обрабатывает Handshake и создаёт ECS-сущность,
-/// стартуя с BundleIndex 0 (Status) или 2 (Login). Дальше канал крутит PacketDispatchSystem.
-/// </summary>
 internal sealed class GuestScreeningSystem : IProtoRunSystem
 {
     [DI] private readonly TcpNetworkService _tcpNetworkService = null!;
@@ -24,9 +19,9 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
     {
         while (_tcpNetworkService.DisconnectedChannels.TryDequeue(out var deadChannel))
         {
+            Logger.Info(LogKey.NetworkChannelDisconnected, deadChannel.RemoteAddress);
             _awaitingHandshake.Remove(deadChannel);
 
-            // Если канал отвалился, будучи уже в ECS (Status или Login)
             int entityId = _gatewayCacheStore.RemoveChannel(deadChannel);
             if (entityId != -1)
                 _world.DelEntity((ProtoEntity)entityId);
@@ -34,7 +29,7 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
 
         while (_tcpNetworkService.PendingConnections.TryDequeue(out var channel))
         {
-            Logger.Debug(LogKey.GatewayNewChannel);
+            Logger.Info(LogKey.GatewayNewChannel, channel.RemoteAddress);
             _awaitingHandshake.Add(channel);
         }
 
@@ -50,12 +45,10 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
                 {
                     case -1:
                     {
-#if DEBUG
-                        Logger.Debug(LogKey.GatewayHandshakeRejected, channel.RemoteAddress);
-#endif
+                        Logger.Warn(LogKey.GatewayHandshakeRejected, channel.RemoteAddress);
                         channel.Disconnect();
                         _awaitingHandshake.RemoveAt(idx);
-                        stateChanged = true; // Выходим из while
+                        stateChanged = true;
                         break;
                     }
                     case 1: // Status
@@ -69,21 +62,16 @@ internal sealed class GuestScreeningSystem : IProtoRunSystem
                     case 2: // Login
                     {
                         Logger.Info(LogKey.GatewayLoginState, channel.RemoteAddress);
-                        PromoteToSession(channel, in data, bundleIndex: 2); // после Status(0) и PingPong(1)
+                        PromoteToSession(channel, in data, bundleIndex: 2);
                         _awaitingHandshake.RemoveAt(idx);
                         stateChanged = true;
                         break;
                     }
-                    default: throw new Exception();
                 }
             }
         }
     }
 
-    /// <summary>
-    /// Создаёт ECS-сущность подключения: NetworkSession + PacketFlowState со стартовым BundleIndex.
-    /// Дальше канал обрабатывается PacketDispatchSystem через конвейер.
-    /// </summary>
     private void PromoteToSession(NetworkChannel channel, in (int protocolVersion, string serverAddress, ushort serverPort) data, int bundleIndex)
     {
         ref var session = ref _gatewayCacheStore.Sessions.NewEntity(out var entity);

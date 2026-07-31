@@ -22,30 +22,16 @@ public class NetworkChannel
     public readonly PipeReader Reader;
     public readonly PipeWriter Writer;
 
-    /// <summary>
-    /// Порог сжатия пакетов (Set Compression) для этого канала. -1 — compression выключена
-    /// (несжатый framing), ≥ 0 — compressed framing по протоколу Minecraft.
-    ///
-    /// Записывается ECS-потоком (<c>PacketDispatchSystem</c> при отправке Set Compression),
-    /// читается read-потоком (<c>TcpNetworkService.TryReadPacket</c>) — поэтому <see cref="volatile"/>:
-    /// атомарная видимость значения между потоками без захода в ECS-мир из read-цикла.
-    /// Симметрично <see cref="_isDisconnected"/> по модели cross-thread флага на канале.
-    /// </summary>
     public volatile int CompressionThreshold = -1;
     
-    // Потокобезопасная очередь входящих пакетов: read-поток → ECS-система.
     public readonly ConcurrentQueue<RawPacket> IncomingPackets = new();
+    internal readonly ConcurrentQueue<OutboundSegment> OutboundQueue = new();
 
-    // Потокобезопасная очередь исходящих чанков: ECS-система → send-воркер.
-    internal readonly ConcurrentQueue<OutboundChunk> OutboundQueue = new();
-
-    // Сигнал send-воркеру: «в OutboundQueue есть данные, проснись и флашь».
-    // SemaphoreSlim(1) — воркер WaitAsync ждёт Release от ECS.
     private readonly SemaphoreSlim _outboundSignal = new(0, int.MaxValue);
-
     public readonly string RemoteAddress;
 
     private int _isDisconnected = 0;
+    public bool IsDisconnected => _isDisconnected == 1;
 
     public NetworkChannel(Socket socket)
     {
@@ -58,21 +44,18 @@ public class NetworkChannel
         Writer = PipeWriter.Create(stream);
     }
 
-    /// <summary>
-    /// Ставит порцию байтов в очередь на отправку и будит send-воркер.
-    /// Вызывается ECS-системой в главном тике: копирует <paramref name="data"/> в арендованный буфер
-    /// и сигнализирует. Сам <see cref="Writer"/> не трогает — это обязанность send-воркера
-    /// (single-writer контракт Pipes).
-    /// </summary>
     public void EnqueueOutbound(ReadOnlySpan<byte> data)
     {
-        OutboundQueue.Enqueue(OutboundChunk.Rent(data));
+        OutboundQueue.Enqueue(OutboundSegment.Rent(data));
         _outboundSignal.Release();
     }
 
-    /// <summary>
-    /// Ждёт появления данных в <see cref="OutboundQueue"/>. Вызывается send-воркером.
-    /// </summary>
+    public void EnqueueOutbound(byte[] rentedBuffer, int length)
+    {
+        OutboundQueue.Enqueue(OutboundSegment.FromRentedArray(rentedBuffer, length));
+        _outboundSignal.Release();
+    }
+
     internal Task WaitOutboundAsync(CancellationToken ct) => _outboundSignal.WaitAsync(ct);
 
     public void Disconnect()
@@ -85,20 +68,28 @@ public class NetworkChannel
             Reader.Complete();
             Writer.Complete();
         }
-        catch { /* Игнорируем ошибки завершения пайпов */ }
+        catch
+        {
+            // ignored
+        }
 
         try
         {
-            // Отключаем сокет, только если он ещё не disposed
             if (Socket.Connected)
             {
-                Socket.Disconnect(false);
+                Socket.Shutdown(SocketShutdown.Both);
             }
         }
-        catch { /* Игнорируем ошибки сокета при отключении */ }
+        catch
+        {
+            // ignored
+        }
         finally
         {
-            Socket.Dispose();
+            Socket.Close();
         }
+
+        // КРИТИЧЕСКИ ВАЖНО: Будим Send-воркер, иначе он уснет навсегда в WaitOutboundAsync
+        _outboundSignal.Release();
     }
 }

@@ -1,77 +1,110 @@
 using Verstack.Network.Packet.Writers;
 using Verstack.Network.Compression;
 using Verstack.Network.Packet;
+using System.Net.Sockets;
+using System.Buffers;
+using System.Net;
 
 namespace Verstack.Network.Tests;
 
 public sealed class PacketOutboundTests
 {
-    private readonly FakeNetworkChannel _channel = new FakeNetworkChannel { CompressionThreshold = -1 };
-    private readonly IPacketCompressor _compressor = new IdentityCompressor();
-    private byte[] _frameScratch = new byte[65536];
-    private byte[] _payloadBuffer = new byte[32768];
+    // Фейковый компрессор, который просто копирует данные (сжимает в 1:1)
+    private sealed class IdentityCompressor : IPacketCompressor
+    {
+        public int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
+        {
+            source.CopyTo(destination);
+            return source.Length;
+        }
+
+        public int GetMaxCompressedSize(int sourceSize) => sourceSize;
+    }
+
+    // Создаем канал без реального подключения. Socket создаётся, но не коннектится.
+    private static NetworkChannel CreateFakeChannel()
+    {
+        // Создаем локальный слушатель, чтобы получить два подключенных друг к другу сокета
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        listener.Listen(1);
+
+        var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        client.Connect(listener.LocalEndPoint!);
+        
+        var server = listener.Accept();
+        client.Close(); // Нам нужен только серверный сокет для NetworkChannel
+
+        return new NetworkChannel(server);
+    }
 
     [Fact]
     public void Commit_OnePacket_SendsDataOnFlush()
     {
-        var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
+        var channel = CreateFakeChannel();
+        var outbound = new PacketOutbound(channel, new IdentityCompressor());
         
         var writer = outbound.Begin();
         writer.WriteVarInt(42);
         outbound.Commit(ref writer);
         
-        // Если Commit не сработал или забыл сбросить writer, Flush бросит исключение в DEBUG
         outbound.Flush();
 
-        // Если у тестового проекта есть доступ к internal-очереди:
-        Assert.False(_channel.OutboundQueue.IsEmpty);
+        Assert.False(channel.OutboundQueue.IsEmpty);
+        
+        // Очистка ресурсов после теста
+        while (channel.OutboundQueue.TryDequeue(out var chunk))
+            ArrayPool<byte>.Shared.Return(chunk.Buffer);
     }
 
     [Fact]
-    public void Commit_ThreePackets_AccumulatesInChannel()
+    public void Buffer_Grows_Automatically_When_Payload_Exceeds_Initial_Size()
     {
-        var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
+        var channel = CreateFakeChannel();
+        var outbound = new PacketOutbound(channel, new IdentityCompressor());
         
-        // Пакет 1
         var writer = outbound.Begin();
-        writer.WriteVarInt(42);
-        outbound.Commit(ref writer);
         
-        // Пакет 2
-        writer = outbound.Begin();
-        writer.WriteVarInt(42);
-        outbound.Commit(ref writer);
+        // Пишем 10 000 интов (40 000 байт). Изначальный буфер 2048 байт.
+        // Он должен увеличиться внутри EnsureCapacity без ошибок Overflow.
+        for (int i = 0; i < 10000; i++)
+        {
+            writer.WriteInt(i);
+        }
         
-        // Пакет 3
-        writer = outbound.Begin();
-        writer.WriteVarInt(42);
         outbound.Commit(ref writer);
-        
-        // Flush отправляет всё разом
         outbound.Flush();
 
-        Assert.False(_channel.OutboundQueue.IsEmpty);
+        Assert.True(channel.OutboundQueue.TryDequeue(out var chunk));
+        // 40000 байт payload + ~3 байта на VarInt длины
+        Assert.True(chunk.Length > 40000);
+        
+        ArrayPool<byte>.Shared.Return(chunk.Buffer);
     }
 
     [Fact]
     public void EnableCompression_ChangesThreshold()
     {
-        var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
+        var channel = CreateFakeChannel();
+        var outbound = new PacketOutbound(channel, new IdentityCompressor());
+        
         outbound.EnableCompression(256);
-        Assert.Equal(256, _channel.CompressionThreshold);
+        
+        Assert.Equal(256, channel.CompressionThreshold);
     }
 
     [Fact]
     public void Flush_WithoutCommit_ThrowsInDebug()
     {
-        var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
+        var channel = CreateFakeChannel();
+        var outbound = new PacketOutbound(channel, new IdentityCompressor());
+        
         var writer = outbound.Begin();
         writer.WriteVarInt(42);
         
         // Намеренно НЕ вызываем outbound.Commit(ref writer);
         
 #if DEBUG
-        // ИСПОЛЬЗУЕМ try/catch ВМЕСТО ЛЯМБДЫ, так как PacketOutbound — это ref struct
         bool threw = false;
         try
         {
@@ -88,14 +121,15 @@ public sealed class PacketOutboundTests
     [Fact]
     public void Begin_TwiceWithoutCommit_ThrowsInDebug()
     {
-        var outbound = new PacketOutbound(_channel, _compressor, _frameScratch, _payloadBuffer);
+        var channel = CreateFakeChannel();
+        var outbound = new PacketOutbound(channel, new IdentityCompressor());
+        
         var writer = outbound.Begin();
         writer.WriteVarInt(42);
         
         // Намеренно НЕ вызываем outbound.Commit(ref writer);
         
 #if DEBUG
-        // ИСПОЛЬЗУЕМ try/catch ВМЕСТО ЛЯМБДЫ
         bool threw = false;
         try
         {

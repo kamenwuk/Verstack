@@ -9,24 +9,26 @@ namespace Verstack.Network.Packet;
 /// Буфер взят из <c>ArrayPool&lt;byte&gt;</c> и возвращается send-воркером после записи в <c>PipeWriter</c>.
 /// <see cref="Length"/> может быть меньше длины массива — арендованный буфер часто больше записанных данных.
 /// </summary>
-internal readonly struct OutboundChunk
+internal readonly struct OutboundSegment
 {
-    internal readonly byte[] Buffer;
-    internal readonly int Length;
+    public readonly byte[] Buffer;
+    public readonly int Length;
 
-    private OutboundChunk(byte[] buffer, int length)
+    private OutboundSegment(byte[] buffer, int length)
     {
         Buffer = buffer;
         Length = length;
     }
 
-    /// <summary>
-    /// Арендует буфер из <c>ArrayPool&lt;byte&gt;</c> и копирует в него <paramref name="source"/>.
-    /// </summary>
-    internal static OutboundChunk Rent(ReadOnlySpan<byte> source)
+    public static OutboundSegment Rent(ReadOnlySpan<byte> data)
     {
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(source.Length);
-        source.CopyTo(buffer);
-        return new OutboundChunk(buffer, source.Length);
+        var buffer = ArrayPool<byte>.Shared.Rent(data.Length);
+        data.CopyTo(buffer);
+        return new OutboundSegment(buffer, data.Length);
+    }
+
+    public static OutboundSegment FromRentedArray(byte[] rentedBuffer, int length)
+    {
+        return new OutboundSegment(rentedBuffer, length);
     }
 }

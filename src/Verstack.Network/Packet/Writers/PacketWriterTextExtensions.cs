@@ -12,7 +12,8 @@ public static class PacketWriterTextExtensions
     public static ref PacketStreamWriter WriteString(this ref PacketStreamWriter streamWriter, string value)
     {
         int byteCount = Encoding.UTF8.GetByteCount(value);
-        streamWriter.WriteVarInt(byteCount);
+        streamWriter.WriteVarInt(byteCount); // VarInt сам вызовет EnsureCapacity
+        streamWriter.EnsureCapacity(byteCount);
         Encoding.UTF8.GetBytes(value, streamWriter.FreeSpan);
         streamWriter.Advance(byteCount);
         return ref streamWriter;

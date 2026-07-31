@@ -1,12 +1,11 @@
 using System.Collections.Concurrent;
-using Verstack.Network.DataTypes;
+using Verstack.Network.Compression;
 using Verstack.Network.Packet;
 using System.IO.Pipelines;
 using System.Net.Sockets;
 using Verstack.Debug;
 using System.Buffers;
 using System.Net;
-using Verstack.Network.Compression;
 
 namespace Verstack.Network
 {
@@ -79,7 +78,6 @@ namespace Verstack.Network
 
         /// <summary>
         /// Read-цикл: режет входящий поток на RawPacket и складывает в IncomingPackets.
-        /// Не трогает ECS-мир — только очередь. Leopotam не потокобезопасен.
         /// </summary>
         private async Task ProcessClientAsync(NetworkChannel channel, CancellationToken cts)
         {
@@ -91,9 +89,8 @@ namespace Verstack.Network
                     ReadOnlySequence<byte> buffer = result.Buffer;
 
                     if (result.IsCompleted && buffer.Length == 0)
-                        break; // Клиент отключился
+                        break; 
 
-                    // Бесконечно режем байты на пакеты и кидаем в очередь
                     while (true)
                     {
                         var frameResult = TryReadPacket(channel, ref buffer, out int packetId, out byte[] data);
@@ -104,7 +101,7 @@ namespace Verstack.Network
                             break;
                         }
                         if (frameResult != PacketFrameResult.Complete)
-                            break; // Partial — ждём ещё данных
+                            break; 
 
                         channel.IncomingPackets.Enqueue(new RawPacket(packetId, data));
                     }
@@ -112,16 +109,18 @@ namespace Verstack.Network
                     channel.Reader.AdvanceTo(buffer.Start, buffer.End);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) { }
+            catch (Exception ex) when (ex is IOException or SocketException)
             {
+                // Соединение разорвано клиентом или сервером во время чтения
+                Logger.Warn(LogKey.NetworkChannelDisconnected, channel.RemoteAddress);
             }
             catch (Exception ex)
             {
-                Logger.Error(LogKey.NetworkChannelDisconnected, ex);
+                Logger.Error(LogKey.NetworkChannelDisconnected, channel.RemoteAddress, ex.Message);
             }
             finally
             {
-                Logger.Warn(LogKey.NetworkChannelDisconnected, channel.RemoteAddress);
                 channel.Disconnect();
                 DisconnectedChannels.Enqueue(channel);
             }
@@ -130,7 +129,6 @@ namespace Verstack.Network
         /// <summary>
         /// Send-цикл: единственный владелец PipeWriter (single-writer контракт Pipes).
         /// Ждёт сигнала от ECS, вычитывает OutboundQueue, пишет в Writer и флашит.
-        /// Ошибка flush → канал помечается мёртвым (читающая сторона закроет его).
         /// </summary>
         private async Task SendLoopAsync(NetworkChannel channel, CancellationToken cts)
         {
@@ -140,7 +138,10 @@ namespace Verstack.Network
                 {
                     await channel.WaitOutboundAsync(cts);
 
-                    // Вычитываем всё накопленное за один будильник — один flush на пачку.
+                    // Если канал был отключен (проснулись от Release в Disconnect)
+                    if (channel.IsDisconnected)
+                        return;
+
                     while (channel.OutboundQueue.TryDequeue(out var chunk))
                     {
                         try
@@ -148,12 +149,11 @@ namespace Verstack.Network
                             channel.Writer.Write(new ReadOnlySpan<byte>(chunk.Buffer, 0, chunk.Length));
                             await channel.Writer.FlushAsync(cts);
                         }
-                        catch (Exception ex)
+                        catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException)
                         {
-                            Logger.Error(LogKey.NetworkChannelDisconnected, ex);
+                            Logger.Warn(LogKey.NetworkChannelDisconnected, channel.RemoteAddress);
                             channel.Disconnect();
-                            // DisconnectedChannels заполняется в finally read-цикла — не дублируем.
-                            return;
+                            return; 
                         }
                         finally
                         {
@@ -162,13 +162,10 @@ namespace Verstack.Network
                     }
                 }
             }
-            catch (OperationCanceledException)
-            {
-            }
-            // Прочие исключения логируем, но не дублируем Disconnect — read-цикл всё равно заметит обрыв.
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                Logger.Error(LogKey.NetworkChannelDisconnected, ex);
+                Logger.Error(LogKey.NetworkChannelDisconnected, channel.RemoteAddress, ex.Message);
             }
         }
 
