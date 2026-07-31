@@ -6,6 +6,7 @@ using Verstack.Lifecycle;
 using Leopotam.EcsProto;
 using System.Buffers;
 using Verstack.Debug;
+using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -45,13 +46,19 @@ internal sealed class ClientInformationBundle : PacketBundle
         Logger.Debug(LogKey.PacketClientInformation, locale);
 
         // S→C Known Packs (0x0E): один пак minecraft:core@26.2.
-        var pw = new SpanWriter(outbound.PayloadBuffer);
-        VarInt.Write(ref pw, 0x0E);                       // Known Packs ID
-        VarInt.Write(ref pw, 1);                          // 1 pack
-        Utf8String.Write(ref pw, "minecraft");            // namespace
-        Utf8String.Write(ref pw, "core");                 // id
-        Utf8String.Write(ref pw, "26.2");                 // version
-        outbound.Send(pw.WrittenSpan);
+
+        var writer = new PacketWriter(outbound.PayloadBuffer);
+        // Known Packs ID
+        writer.WriteVarInt(0x0E)  
+            // 1 pack
+            .WriteVarInt(1)
+            // namespace
+            .WriteString("minecraft"u8)
+            // id
+            .WriteString("core"u8)
+            // version
+            .WriteString("26.2"u8);
+        outbound.Send(writer.WrittenSpan);
         return PacketHandleResult.Accepted;
     }
 }

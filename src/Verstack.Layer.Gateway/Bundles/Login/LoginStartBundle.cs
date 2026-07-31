@@ -6,6 +6,7 @@ using Leopotam.EcsProto;
 using Verstack.Lifecycle;
 using Verstack.Debug;
 using System.Buffers;
+using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -47,21 +48,22 @@ internal sealed class LoginStartBundle : PacketBundle
         // Set Compression (0x03) — несжатый (compression ещё не включена).
         if (ServerConstants.COMPRESSION_THRESHOLD >= 0)
         {
-            var scw = new SpanWriter(outbound.PayloadBuffer);
-            VarInt.Write(ref scw, 0x03);                                  // Set Compression ID
-            VarInt.Write(ref scw, ServerConstants.COMPRESSION_THRESHOLD);
-            outbound.Send(scw.WrittenSpan);
+            var setCompression = new PacketWriter(outbound.PayloadBuffer);
+            setCompression.WriteVarInt(0x03)
+                .WriteVarInt(ServerConstants.COMPRESSION_THRESHOLD);
+            outbound.Send(setCompression.WrittenSpan);
             outbound.EnableCompression(ServerConstants.COMPRESSION_THRESHOLD);
         }
 
         // Login Success (0x02) в протоколе 776: Game Profile + Session ID.
-        var pw = new SpanWriter(outbound.PayloadBuffer);
-        VarInt.Write(ref pw, 0x02);                       // Login Success ID
-        Uuid.Write(ref pw, offlineUuid);                  // Game Profile.UUID
-        Utf8String.Write(ref pw, name);                   // Game Profile.Username
-        VarInt.Write(ref pw, 0);                          // Game Profile.Properties count
-        Uuid.Write(ref pw, Guid.NewGuid());               // Session ID (поле 776)
-        outbound.Send(pw.WrittenSpan);
+        var loginSuccess = new PacketWriter(outbound.PayloadBuffer);
+        loginSuccess.WriteVarInt(0x02)          // Login Success ID
+            .WriteUuid(offlineUuid)             // Game Profile.UUID
+            .WriteString(name)                  // Game Profile.Username
+            .WriteVarInt(0)                     // Game Profile.Properties count
+            .WriteUuid(Guid.NewGuid());         // Session ID (поле 776)
+        
+        outbound.Send(loginSuccess.WrittenSpan);
         return PacketHandleResult.Accepted;
     }
 }

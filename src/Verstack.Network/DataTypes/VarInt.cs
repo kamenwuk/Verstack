@@ -86,25 +86,25 @@ public static class VarInt
         return written;
     }
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(ref Packet.SpanWriter writer, int value)
-    {
-        Span<byte> span = writer.GetSpan(MAX_SIZE);
-        int written = 0;
-        uint v = (uint)value;
-
-        do
-        {
-            byte temp = (byte)(v & 0x7F);
-            v >>= 7;
-            if (v != 0)
-                temp |= 0x80;
-
-            span[written++] = temp;
-        } while (v != 0);
-
-        writer.Advance(written);
-    }
+    // [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    // public static void Write(ref Packet.SpanWriter writer, int value)
+    // {
+    //     Span<byte> span = writer.GetSpan(MAX_SIZE);
+    //     int written = 0;
+    //     uint v = (uint)value;
+    //
+    //     do
+    //     {
+    //         byte temp = (byte)(v & 0x7F);
+    //         v >>= 7;
+    //         if (v != 0)
+    //             temp |= 0x80;
+    //
+    //         span[written++] = temp;
+    //     } while (v != 0);
+    //
+    //     writer.Advance(written);
+    // }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetSize(int value)

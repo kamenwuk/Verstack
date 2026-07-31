@@ -1,10 +1,12 @@
-using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
+using Verstack.Network.Packet.Writers;
 using Verstack.Layer.Global;
 using Leopotam.EcsProto;
 using Verstack.Debug;
 using Verstack.Nbt;
 using System;
+
+namespace Verstack.Layer.Gateway.Bundles;
 
 internal sealed class KnownPacksBundle : PacketBundle
 {
@@ -37,14 +39,14 @@ internal sealed class KnownPacksBundle : PacketBundle
                     byte[] registryId = syncedIds[i];
                     byte[][] entries = entryIds[i];
 
-                    var rdw = new SpanWriter(outbound.PayloadBuffer);
-                    VarInt.Write(ref rdw, 0x07); // registry_data
-                    Utf8String.Write(ref rdw, registryId);
-                    VarInt.Write(ref rdw, entries.Length);
+                    var registryData = new PacketWriter(outbound.PayloadBuffer);
+                    registryData.WriteVarInt(0x07) // registry_data
+                                .WriteString(registryId)
+                                .WriteVarInt(entries.Length);
 
                     foreach (byte[] entryName in entries)
                     {
-                        Utf8String.Write(ref rdw, entryName);
+                        registryData.WriteString(entryName);
 
                         bool isDimensionType = i == (int)SyncedRegistryCatalog.RegistryType.DimensionType;
                         bool isOverworld = isDimensionType && entryName.SequenceEqual("minecraft:overworld"u8);
@@ -52,8 +54,7 @@ internal sealed class KnownPacksBundle : PacketBundle
                         if (isOverworld)
                         {
                             // 2. Prefixed Optional NBT: Boolean = true (0x01)
-                            rdw.GetSpan(1)[0] = 1;
-                            rdw.Advance(1);
+                            registryData.WriteBool(true);
 
                             // 3. NBT Data – точная копия дефолтного overworld
                             var nbtWriter = new NbtWriter(nbtBuffer, nbtFrames, networked: true);
@@ -127,17 +128,17 @@ internal sealed class KnownPacksBundle : PacketBundle
                             .EndCompound();
 
                             ReadOnlySpan<byte> nbtData = nbtWriter.Finish();
-                            nbtData.CopyTo(rdw.GetSpan(nbtData.Length));
-                            rdw.Advance(nbtData.Length);
+                            
+                            // Раньше тут было GetSpan + CopyTo + Advance
+                            registryData.WriteSpanRaw(nbtData);
                         }
                         else
                         {
                             // Нет данных для других записей
-                            rdw.GetSpan(1)[0] = 0;
-                            rdw.Advance(1);
+                            registryData.WriteBool(false);
                         }
                     }
-                    outbound.Send(rdw.WrittenSpan);
+                    outbound.Send(registryData.WrittenSpan);
                 }
 
                 return PacketHandleResult.Continue;
@@ -153,18 +154,20 @@ internal sealed class KnownPacksBundle : PacketBundle
 
                 for (int i = 0; i < registryNames.Length; i++)
                 {
-                    var tw = new SpanWriter(outbound.PayloadBuffer);
-                    VarInt.Write(ref tw, 0x0D); // update_tags
-                    VarInt.Write(ref tw, 1);    // одна группа на реестр
-                    Utf8String.Write(ref tw, registryNames[i]);
+                    var updateTags = new PacketWriter(outbound.PayloadBuffer);
+                    updateTags.WriteVarInt(0x0D) // update_tags
+                              .WriteVarInt(1)    // одна группа на реестр
+                              .WriteString(registryNames[i]);
+                              
                     byte[][] tags = tagNames[i];
-                    VarInt.Write(ref tw, tags.Length);
+                    updateTags.WriteVarInt(tags.Length);
+                    
                     foreach (byte[] tag in tags)
                     {
-                        Utf8String.Write(ref tw, tag);
-                        VarInt.Write(ref tw, 0); // пустой список элементов
+                        updateTags.WriteString(tag)
+                                  .WriteVarInt(0); // пустой список элементов
                     }
-                    outbound.Send(tw.WrittenSpan);
+                    outbound.Send(updateTags.WrittenSpan);
                 }
 
                 Logger.Debug(LogKey.PacketUpdateTags);
@@ -173,16 +176,16 @@ internal sealed class KnownPacksBundle : PacketBundle
             case 2:
             {
                 // --- 3. S→C Feature Flags (ID 0x0C) ---
-                var ffw = new SpanWriter(outbound.PayloadBuffer);
-                VarInt.Write(ref ffw, 0x0C); // update_enabled_features
-                VarInt.Write(ref ffw, 1);
-                Utf8String.Write(ref ffw, "minecraft:vanilla");
-                outbound.Send(ffw.WrittenSpan);
+                var featureFlags = new PacketWriter(outbound.PayloadBuffer);
+                featureFlags.WriteVarInt(0x0C) // update_enabled_features
+                            .WriteVarInt(1)
+                            .WriteString("minecraft:vanilla");
+                outbound.Send(featureFlags.WrittenSpan);
 
                 // --- 4. S→C Finish Configuration (ID 0x03) ---
-                var fcw = new SpanWriter(outbound.PayloadBuffer);
-                VarInt.Write(ref fcw, 0x03); // finish_configuration
-                outbound.Send(fcw.WrittenSpan);
+                var finishConfiguration = new PacketWriter(outbound.PayloadBuffer);
+                finishConfiguration.WriteVarInt(0x03); // finish_configuration
+                outbound.Send(finishConfiguration.WrittenSpan);
 
                 Logger.Debug(LogKey.PacketConfigurationFinish);
                 return PacketHandleResult.Accepted;

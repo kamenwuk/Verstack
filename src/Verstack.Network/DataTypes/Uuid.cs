@@ -44,12 +44,12 @@ public static class Uuid
         writer.Advance(SIZE);
     }
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(ref Packet.SpanWriter writer, Guid value)
-    {
-        value.TryWriteBytes(writer.GetSpan(SIZE), bigEndian: true, out _);
-        writer.Advance(SIZE);
-    }
+    // [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    // public static void Write(ref Packet.SpanWriter writer, Guid value)
+    // {
+    //     value.TryWriteBytes(writer.GetSpan(SIZE), bigEndian: true, out _);
+    //     writer.Advance(SIZE);
+    // }
 
     /// <summary>
     /// Генерирует offline-UUID (версия 3) для имени игрока. Повторяет семантику

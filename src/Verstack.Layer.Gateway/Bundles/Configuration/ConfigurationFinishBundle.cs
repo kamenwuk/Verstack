@@ -53,6 +53,6 @@ internal sealed class ConfigurationFinishBundle : PacketBundle
         string name = _cache.UserProfiles.Get(entity).Username;
         Logger.Debug(LogKey.PacketConfigurationFinish, name);
         
-        return PacketHandleResult.Accepted;
+        return PacketHandleResult.Kick;
     }
 }

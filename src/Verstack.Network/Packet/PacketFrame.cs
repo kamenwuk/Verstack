@@ -1,6 +1,7 @@
 using Verstack.Network.Compression;
 using Verstack.Network.DataTypes;
 using System.Buffers;
+using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Network.Packet;
 
@@ -124,7 +125,7 @@ public static class PacketFrame
     /// по порогу сжатия и пишет в <paramref name="writer"/>. framing-слой не разбирает
     /// внутреннюю структуру payload — работает с ним как с чёрным ящиком.
     /// </summary>
-    public static void Write(ref SpanWriter writer, ReadOnlySpan<byte> payload,
+    public static void Write(ref PacketWriter writer, ReadOnlySpan<byte> payload,
         IPacketCompressor compressor, int compressionThreshold)
     {
         int payloadSize = payload.Length;
@@ -132,9 +133,8 @@ public static class PacketFrame
         // --- Несжатый framing: [VarInt(payloadSize)][payload] ---
         if (compressionThreshold < 0 || compressor == null)
         {
-            VarInt.Write(ref writer, payloadSize);
-            payload.CopyTo(writer.GetSpan(payloadSize));
-            writer.Advance(payloadSize);
+            writer.WriteVarInt(payloadSize)
+                .WriteSpanRaw(payload);
             return;
         }
 
@@ -143,10 +143,9 @@ public static class PacketFrame
         {
             // payload меньше threshold → DataLength=0, тело несжатое.
             int packetLength = 1 + payloadSize; // VarInt(0) всегда 1 байт
-            VarInt.Write(ref writer, packetLength);
-            VarInt.Write(ref writer, 0);
-            payload.CopyTo(writer.GetSpan(payloadSize));
-            writer.Advance(payloadSize);
+            writer.WriteVarInt(packetLength)
+                .WriteVarInt(0)
+                .WriteSpanRaw(payload);
             return;
         }
 
@@ -158,10 +157,9 @@ public static class PacketFrame
             int compressedLen = compressor.Compress(payload, compressed);
 
             int innerLen = VarInt.GetSize(payloadSize) + compressedLen;
-            VarInt.Write(ref writer, innerLen);
-            VarInt.Write(ref writer, payloadSize);
-            compressed.AsSpan(0, compressedLen).CopyTo(writer.GetSpan(compressedLen));
-            writer.Advance(compressedLen);
+            writer.WriteVarInt(innerLen)
+                .WriteVarInt(payloadSize)
+                .WriteSpanRaw(compressed.AsSpan(0, compressedLen));
         }
         finally
         {

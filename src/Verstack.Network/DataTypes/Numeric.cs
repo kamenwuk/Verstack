@@ -63,12 +63,12 @@ public static class Numeric
         writer.Advance(8);
     }
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteLong(ref Packet.SpanWriter writer, long value)
-    {
-        BinaryPrimitives.WriteInt64BigEndian(writer.GetSpan(8), value);
-        writer.Advance(8);
-    }
+    // [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    // public static void WriteLong(ref Packet.SpanWriter writer, long value)
+    // {
+    //     BinaryPrimitives.WriteInt64BigEndian(writer.GetSpan(8), value);
+    //     writer.Advance(8);
+    // }
 
     // --- Float ---
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

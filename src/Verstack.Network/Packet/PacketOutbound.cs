@@ -1,4 +1,5 @@
 using Verstack.Network.Compression;
+using Verstack.Network.Packet.Writers;
 
 namespace Verstack.Network.Packet;
 
@@ -36,7 +37,7 @@ public ref struct PacketOutbound(NetworkChannel channel, IPacketCompressor compr
     /// </summary>
     public void Send(ReadOnlySpan<byte> payload)
     {
-        var frameWriter = new SpanWriter(_frameScratch[_frameOffset..]);
+        var frameWriter = new PacketWriter(_frameScratch[_frameOffset..]);
         PacketFrame.Write(ref frameWriter, payload, compressor, channel.CompressionThreshold);
         _frameOffset += frameWriter.Written;
     }
