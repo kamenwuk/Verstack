@@ -1,5 +1,7 @@
-using Verstack.Network.Lifecycle;
+using Verstack.Network.Compression;
+using Verstack.Shared.Bridge;
 using Leopotam.EcsProto;
+using Verstack.Network;
 using Verstack.Debug;
 
 namespace Verstack.Lifecycle;
@@ -18,14 +20,16 @@ public sealed class EntryPoint
     {
         Logger.Info(LogKey.ServerStart, port);
 
-        var netHubModule = new NetworkHubModule(port, ServerWorldScopes.GATEWAY);
+        var bridgeHandoffRouter = new BridgeHandoffRouter(ServerWorldScopes.GATEWAY);
+        bridgeHandoffRouter.AddLayer(ServerWorldScopes.GATEWAY, ServerWorldScopes.REALM);
+        bridgeHandoffRouter.AddLayer(ServerWorldScopes.REALM, string.Empty);
         
-        netHubModule.AddLayer(ServerWorldScopes.GATEWAY, ServerWorldScopes.REALM);
-        netHubModule.AddLayer(ServerWorldScopes.REALM, null);
+        var netHubModule = new NetworkHubModule(port, bridgeHandoffRouter, new ZLibPacketDecompressor(), new ZLibPacketCompressor());
+        
         // 1. Инициализация базовых сервисов
         _serverTime = new ServerTime();
 
-        var composer = new ServerComposer(globalLayer, netHubModule, layers)
+        var composer = new ServerComposer(globalLayer, bridgeHandoffRouter, netHubModule, layers)
             .AddService(_serverTime);
 
         _layers = composer.Compose();

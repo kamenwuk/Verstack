@@ -1,4 +1,4 @@
-﻿using Verstack.Network.Lifecycle;
+﻿using Verstack.Shared.Bridge;
 using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
 using Leopotam.EcsProto;
@@ -31,5 +31,5 @@ public sealed class GatewayLayer : ServerFeatureLayer
 
     protected override string GetNextScope() => ServerWorldScopes.REALM;
     
-    protected override NetworkHandoffPolicy GetHandoffPolicy() => new GatewayNetworkHandoffPolicy();
+    protected override BridgeHandoffPolicy GetHandoffPolicy() => new GatewayHandoffPolicy();
 }

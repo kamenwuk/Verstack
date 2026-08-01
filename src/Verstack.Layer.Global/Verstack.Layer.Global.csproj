@@ -7,9 +7,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
-      <ProjectReference Include="..\Verstack.Lifecycle\Verstack.Lifecycle.csproj" />
-      <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+        <ProjectReference Include="..\Verstack.Lifecycle\Verstack.Lifecycle.csproj" />
+        <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj" />
+        <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
-﻿using Verstack.Layer.Realm.Systems;
-using Verstack.Network.Lifecycle;
-using Verstack.Layer.Realm.User;
+﻿using Verstack.Layer.Realm.User;
+using Verstack.Layer.Realm.Join;
+using Verstack.Shared.Bridge;
 using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
 using Leopotam.EcsProto;
@@ -31,5 +31,5 @@ public sealed class RealmLayer : ServerFeatureLayer
 
     protected override string GetNextScope() => string.Empty;
 
-    protected override NetworkHandoffPolicy GetHandoffPolicy() => new RealmNetworkHandoffPolicy();
+    protected override BridgeHandoffPolicy GetHandoffPolicy() => new RealmNetworkHandoffPolicy();
 }

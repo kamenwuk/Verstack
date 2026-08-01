@@ -8,7 +8,8 @@ namespace Verstack.Lifecycle;
 /// </summary>
 public static class ServerFeatureExtensions
 {
-    public static ProtoSystems BuildSystems(this ServerFeatureLayer featureLayer, IEnumerable<object> services,
+    public static ProtoSystems BuildSystems(this ServerFeatureLayer featureLayer, 
+        IEnumerable<(object value, Type type)> services,
         params IProtoModule[] addition)
     {
         var cacheStores = featureLayer.GetCacheStores();
@@ -32,7 +33,7 @@ public static class ServerFeatureExtensions
         systems.AddWorld(world, featureLayer.Scope);
 
         foreach (var service in services)
-            systems.AddService(service);
+            systems.AddService(service.value, service.type);
 
         systems.AddModule(modules.BuildModule());
 

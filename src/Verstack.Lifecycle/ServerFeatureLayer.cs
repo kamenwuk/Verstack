@@ -1,4 +1,4 @@
-using Verstack.Network.Lifecycle;
+using Verstack.Shared.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 
@@ -19,5 +19,5 @@ public abstract class ServerFeatureLayer
 
     protected internal abstract string GetNextScope();
     
-    protected internal abstract NetworkHandoffPolicy GetHandoffPolicy();
+    protected internal abstract BridgeHandoffPolicy GetHandoffPolicy();
 }

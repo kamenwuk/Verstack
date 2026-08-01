@@ -1,17 +1,18 @@
 using Verstack.Layer.Gateway.Bundles;
 using Verstack.Network.Compression;
-using Verstack.Network.Lifecycle;
 using Verstack.Network.Packet;
+using Verstack.Shared.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
+using Verstack.Lifecycle;
 
 namespace Verstack.Layer.Gateway;
 
 internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
 {
     [DI] private readonly GatewayCacheStore _gatewayCacheStore = null!;
-    [DI] private readonly NetworkHandoffCacheStore _networkHandoffCacheStore = null!;
-    [DI] private readonly ZLibPacketCompressor _compressor = null!;
+    [DI] private readonly BridgeStateCacheStore _bridgeStateCacheStore = null!;
+    [DI(ServerWorldScopes.GLOBAL)] private readonly IPacketCompressor _compressor = null!;
 
     private PacketPipeline _pipeline = null!;
     
@@ -30,10 +31,12 @@ internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
     
     public void Run()
     {
-        foreach (var entity in _gatewayCacheStore.ActiveSessionsFilter)
+        foreach (var entity in _bridgeStateCacheStore.ConnectedFilter)
         {
-            var channel = _networkHandoffCacheStore.GetChannel((int)entity);
-            if (channel == null) continue;
+            if(!_gatewayCacheStore.ActiveSessionsFilter.Has(entity))
+                continue;
+            
+            var channel = _bridgeStateCacheStore.GetChannel(entity);
 
             ref var flowState = ref _gatewayCacheStore.FlowStates.Get(entity);
 

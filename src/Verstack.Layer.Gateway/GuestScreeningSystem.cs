@@ -1,5 +1,5 @@
 using Verstack.Layer.Global.User;
-using Verstack.Network.Lifecycle;
+using Verstack.Shared.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 using Verstack.Network;
@@ -9,14 +9,18 @@ namespace Verstack.Layer.Gateway;
 
 internal sealed class GuestScreeningSystem : IProtoRunSystem
 {
-    [DI] private readonly NetworkHandoffCacheStore _networkHandoffCacheStore = null!;
+    [DI] private readonly BridgeStateCacheStore _bridgeStateCacheStore = null!;
     [DI] private readonly GatewayCacheStore _gatewayCacheStore = null!;
 
     public void Run()
     {
-        foreach (var entity in _gatewayCacheStore.AwaitingHandshakeFilter)
+        // Достаем новых игроков напрямую из Bridge. 
+        // В payload.Entity уже вшит BridgeClientConnected (он на рельсах).
+        // payload.Data для Gateway будет null, так как это первый слой.
+        while (_bridgeStateCacheStore.TryDequeueHandoff(out var payload))
         {
-            var channel = _networkHandoffCacheStore.GetChannel((int)entity);
+            var entity = payload.Entity;
+            var channel = _bridgeStateCacheStore.GetChannel(entity);
             if (channel == null) continue;
 
             bool stateChanged = false;

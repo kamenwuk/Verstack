@@ -1,15 +1,18 @@
-﻿using Verstack.Network.Lifecycle;
+﻿using Verstack.Shared.Bridge;
 using Leopotam.EcsProto;
+using Verstack.Network;
 
 namespace Verstack.Lifecycle;
 
 internal sealed class ServerComposer
 {
+    private readonly BridgeHandoffRouter _bridgeHandoffRouter;
     private readonly NetworkHubModule _networkHubModule;
     private readonly ServerFeatureLayer[] _layers;
     
-    public ServerComposer(ServerFeatureLayer global, NetworkHubModule networkHubModule, params ServerFeatureLayer[] layers)
+    public ServerComposer(ServerFeatureLayer global, BridgeHandoffRouter bridgeHandoffRouter, NetworkHubModule networkHubModule, params ServerFeatureLayer[] layers)
     {
+        _bridgeHandoffRouter = bridgeHandoffRouter;
         _networkHubModule = networkHubModule;
         _layers = new ServerFeatureLayer[1 + layers.Length];
         _layers[0] = global;
@@ -17,12 +20,12 @@ internal sealed class ServerComposer
             _layers[idx + 1] = layers[idx];
     }
     
-    private readonly List<object> _services = [];
+    private readonly List<(object value, Type type)> _services = [];
 
     public ServerComposer AddService<TService>(TService service)
         where TService : class
     {
-        _services.Add(service);
+        _services.Add((service, service.GetType()));
         return this;
     }
 
@@ -43,14 +46,14 @@ internal sealed class ServerComposer
             worldLookup[layer.Scope] = sys.World();
 
             foreach (var service in _networkHubModule.GetServices())
-                _services.Add(service);
+                _services.Add((service.value, service.type));
         }
         {
             for (var idx = 1; idx < count; idx++)
             {
                 var layer = _layers[idx];
                 var sys = layer.BuildSystems(_services,
-                    new NetworkScopeModule(layer.Scope, layer.GetNextScope(),
+                    new BridgeLayerModule(layer.Scope, layer.GetNextScope(), _bridgeHandoffRouter,
                         layer.GetHandoffPolicy()));
                 systems[idx] = sys;
                 worldLookup[layer.Scope] = sys.World();

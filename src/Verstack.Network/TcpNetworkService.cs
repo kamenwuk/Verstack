@@ -1,5 +1,4 @@
 using Verstack.Network.Compression;
-using Verstack.Network.Lifecycle;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using System.IO.Pipelines;
@@ -13,17 +12,18 @@ namespace Verstack.Network
 {
     internal sealed class TcpNetworkService : IProtoInitService, IProtoDestroyService
     {
-        [DI] private readonly NetworkHandoffRouter _handoffRouter = null!;
-        [DI] private readonly ZLibPacketDecompressor _decompressor = null!;
-        
+        [DI] private readonly IPacketDecompressor _decompressor = null!;
+
+        private readonly ClientLifecycleHandler _clientLifecycleHandler;
         private readonly int _port;
         
         private CancellationTokenSource _cts;
         private Socket _listener;
         
-        internal TcpNetworkService(int port)
+        internal TcpNetworkService(int port, ClientLifecycleHandler clientLifecycleHandler)
         {
             _port = port;
+            _clientLifecycleHandler = clientLifecycleHandler;
         }
         
         public void Init(IProtoSystems systems)
@@ -53,7 +53,7 @@ namespace Verstack.Network
 
                     var channel = new NetworkChannel(client);
                     // Просто кидаем новый канал в очередь. Никаких Handshake!
-                    _handoffRouter.HandleConnect(channel);
+                    _clientLifecycleHandler.HandleConnect(channel);
 
                     // Запускаем read-цикл и send-цикл параллельно: каждый живёт до отключения канала.
                     _ = ProcessClientAsync(channel, cts);
@@ -117,7 +117,7 @@ namespace Verstack.Network
             finally
             {
                 channel.Disconnect();
-                _handoffRouter.HandleDisconnect(channel);
+                _clientLifecycleHandler.HandleDisconnect(channel);
             }
         }
 
