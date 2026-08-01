@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Buffers.Binary;
 using System.Diagnostics;
 
-namespace Verstack.Nbt;
+namespace Verstack.Nbt.Writer;
 
 /// <summary>
 /// GC-free writer NBT (Named Binary Tag) прямо в <c>Span&lt;byte&gt;</c>. Stateful <c>ref struct</c>:

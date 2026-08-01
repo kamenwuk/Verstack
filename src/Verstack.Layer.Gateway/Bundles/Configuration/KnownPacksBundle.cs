@@ -1,6 +1,7 @@
 using Verstack.Network.Packet.Writers;
 using Verstack.Network.Packet;
 using Verstack.Layer.Global;
+using Verstack.Nbt.Assets;
 using Leopotam.EcsProto;
 using Verstack.Debug;
 using Verstack.Nbt;
@@ -57,81 +58,85 @@ internal sealed class KnownPacksBundle : PacketBundle
                             // 2. Prefixed Optional NBT: Boolean = true (0x01)
                             registryData.WriteBool(true);
 
-                            // 3. NBT Data – точная копия дефолтного overworld
-                            var nbtWriter = new NbtWriter(nbtBuffer, nbtFrames, networked: true);
-                            nbtWriter.BeginRootCompound()
-                                .WriteFloat("ambient_light"u8, 0.0f)
-
-                                // --- attributes ---
-                                .BeginCompound("attributes"u8)
-                                    // Ambient sounds
-                                    .BeginCompound("minecraft:audio/ambient_sounds"u8)
-                                        .BeginCompound("mood"u8)
-                                            .WriteInt("block_search_extent"u8, 8)
-                                            .WriteInt("offset"u8, 2)
-                                            .WriteString("sound"u8, "minecraft:ambient.cave"u8)
-                                            .WriteInt("tick_delay"u8, 6000)
-                                        .EndCompound()
-                                    .EndCompound()
-
-                                    // Background music
-                                    .BeginCompound("minecraft:audio/background_music"u8)
-                                        .BeginCompound("creative"u8)
-                                            .WriteInt("max_delay"u8, 24000)
-                                            .WriteInt("min_delay"u8, 12000)
-                                            .WriteString("sound"u8, "minecraft:music.creative"u8)
-                                        .EndCompound()
-                                        .BeginCompound("default"u8)
-                                            .WriteInt("max_delay"u8, 24000)
-                                            .WriteInt("min_delay"u8, 12000)
-                                            .WriteString("sound"u8, "minecraft:music.game"u8)
-                                        .EndCompound()
-                                    .EndCompound()
-
-                                    // Bed rule
-                                    .BeginCompound("minecraft:gameplay/bed_rule"u8)
-                                        .WriteString("can_set_spawn"u8, "always"u8)
-                                        .WriteString("can_sleep"u8, "when_dark"u8)
-                                        .BeginCompound("error_message"u8)
-                                            .WriteString("translate"u8, "block.minecraft.bed.no_sleep"u8)
-                                        .EndCompound()
-                                    .EndCompound()
-
-                                    // Gameplay flags
-                                    .WriteBool("minecraft:gameplay/nether_portal_spawns_piglin"u8, true)
-                                    .WriteBool("minecraft:gameplay/respawn_anchor_works"u8, false)
-
-                                    // Visual colors – теперь целые числа!
-                                    .WriteInt("minecraft:visual/ambient_light_color"u8, unchecked((int)0xFF0A0A0A))
-                                    .WriteInt("minecraft:visual/cloud_color"u8,           unchecked((int)0xCCFFFFFF))
-                                    .WriteFloat("minecraft:visual/cloud_height"u8, 192.33f)
-                                    .WriteInt("minecraft:visual/fog_color"u8,              unchecked((int)0xFFC0D8FF))
-                                    .WriteInt("minecraft:visual/sky_color"u8,              unchecked((int)0xFF78A7FF))
-                                .EndCompound()
-
-                                // --- Остальные поля корневого уровня ---
-                                .WriteDouble("coordinate_scale"u8, 1.0)
-                                .WriteString("default_clock"u8, "minecraft:overworld"u8)
-                                .WriteBool("has_ceiling"u8, false)          // ← исправлено: в overworld должно быть false
-                                .WriteBool("has_ender_dragon_fight"u8, false)
-                                .WriteBool("has_skylight"u8, true)
-                                .WriteInt("height"u8, 384)
-                                .WriteString("infiniburn"u8, "#minecraft:infiniburn_overworld"u8)
-                                .WriteInt("logical_height"u8, 384)
-                                .WriteInt("min_y"u8, -64)
-                                .WriteInt("monster_spawn_block_light_limit"u8, 0)
-                                .BeginCompound("monster_spawn_light_level"u8)
-                                    .WriteString("type"u8, "minecraft:uniform"u8)
-                                    .WriteInt("min_inclusive"u8, 0)
-                                    .WriteInt("max_inclusive"u8, 7)
-                                .EndCompound()
-                                .WriteString("timelines"u8, "#minecraft:in_overworld"u8)
-                            .EndCompound();
-
-                            ReadOnlySpan<byte> nbtData = nbtWriter.Finish();
-                            
+                            // // 3. NBT Data – точная копия дефолтного overworld
+                            // var nbtWriter = new NbtWriter(nbtBuffer, nbtFrames, networked: true);
+                            // nbtWriter.BeginRootCompound()
+                            //     .WriteFloat("ambient_light"u8, 0.0f)
+                            //
+                            //     // --- attributes ---
+                            //     .BeginCompound("attributes"u8)
+                            //         // Ambient sounds
+                            //         .BeginCompound("minecraft:audio/ambient_sounds"u8)
+                            //             .BeginCompound("mood"u8)
+                            //                 .WriteInt("block_search_extent"u8, 8)
+                            //                 .WriteInt("offset"u8, 2)
+                            //                 .WriteString("sound"u8, "minecraft:ambient.cave"u8)
+                            //                 .WriteInt("tick_delay"u8, 6000)
+                            //             .EndCompound()
+                            //         .EndCompound()
+                            //
+                            //         // Background music
+                            //         .BeginCompound("minecraft:audio/background_music"u8)
+                            //             .BeginCompound("creative"u8)
+                            //                 .WriteInt("max_delay"u8, 24000)
+                            //                 .WriteInt("min_delay"u8, 12000)
+                            //                 .WriteString("sound"u8, "minecraft:music.creative"u8)
+                            //             .EndCompound()
+                            //             .BeginCompound("default"u8)
+                            //                 .WriteInt("max_delay"u8, 24000)
+                            //                 .WriteInt("min_delay"u8, 12000)
+                            //                 .WriteString("sound"u8, "minecraft:music.game"u8)
+                            //             .EndCompound()
+                            //         .EndCompound()
+                            //
+                            //         // Bed rule
+                            //         .BeginCompound("minecraft:gameplay/bed_rule"u8)
+                            //             .WriteString("can_set_spawn"u8, "always"u8)
+                            //             .WriteString("can_sleep"u8, "when_dark"u8)
+                            //             .BeginCompound("error_message"u8)
+                            //                 .WriteString("translate"u8, "block.minecraft.bed.no_sleep"u8)
+                            //             .EndCompound()
+                            //         .EndCompound()
+                            //
+                            //         // Gameplay flags
+                            //         .WriteBool("minecraft:gameplay/nether_portal_spawns_piglin"u8, true)
+                            //         .WriteBool("minecraft:gameplay/respawn_anchor_works"u8, false)
+                            //
+                            //         // Visual colors – теперь целые числа!
+                            //         .WriteInt("minecraft:visual/ambient_light_color"u8, unchecked((int)0xFF0A0A0A))
+                            //         .WriteInt("minecraft:visual/cloud_color"u8,           unchecked((int)0xCCFFFFFF))
+                            //         .WriteFloat("minecraft:visual/cloud_height"u8, 192.33f)
+                            //         .WriteInt("minecraft:visual/fog_color"u8,              unchecked((int)0xFFC0D8FF))
+                            //         .WriteInt("minecraft:visual/sky_color"u8,              unchecked((int)0xFF78A7FF))
+                            //     .EndCompound()
+                            //
+                            //     // --- Остальные поля корневого уровня ---
+                            //     .WriteDouble("coordinate_scale"u8, 1.0)
+                            //     .WriteString("default_clock"u8, "minecraft:overworld"u8)
+                            //     .WriteBool("has_ceiling"u8, false)          // ← исправлено: в overworld должно быть false
+                            //     .WriteBool("has_ender_dragon_fight"u8, false)
+                            //     .WriteBool("has_skylight"u8, true)
+                            //     .WriteInt("height"u8, 384)
+                            //     .WriteString("infiniburn"u8, "#minecraft:infiniburn_overworld"u8)
+                            //     .WriteInt("logical_height"u8, 384)
+                            //     .WriteInt("min_y"u8, -64)
+                            //     .WriteInt("monster_spawn_block_light_limit"u8, 0)
+                            //     .BeginCompound("monster_spawn_light_level"u8)
+                            //         .WriteString("type"u8, "minecraft:uniform"u8)
+                            //         .WriteInt("min_inclusive"u8, 0)
+                            //         .WriteInt("max_inclusive"u8, 7)
+                            //     .EndCompound()
+                            //     .WriteString("timelines"u8, "#minecraft:in_overworld"u8)
+                            // .EndCompound();
+                            //
+                            // ReadOnlySpan<byte> nbtData = nbtWriter.Finish();
+                            using var nbtData = NbtAssetSource.RentScoped(
+                                NbtCatalog.WorldGen, 
+                                NbtAsset.DimensionTypes, 
+                                "overworld" // Убедись, что файл называется overworld.nbt
+                            );
                             // Раньше тут было GetSpan + CopyTo + Advance
-                            registryData.WriteSpanRaw(nbtData);
+                            registryData.WriteSpanRaw(nbtData.Data);
                         }
                         else
                         {

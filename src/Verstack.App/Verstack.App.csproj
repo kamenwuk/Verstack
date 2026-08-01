@@ -15,4 +15,9 @@
         <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 </Project>

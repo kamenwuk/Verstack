@@ -9,7 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
         <ProjectReference Include="..\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
-        <ProjectReference Include="..\Verstack.NBT\Verstack.NBT.csproj" />
+        <ProjectReference Include="..\Verstack.Nbt\Verstack.Nbt.csproj" />
     </ItemGroup>
 
     <ItemGroup>

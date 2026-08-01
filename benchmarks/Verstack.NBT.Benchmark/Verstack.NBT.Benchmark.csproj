@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Verstack.NBT\Verstack.NBT.csproj" />
+      <ProjectReference Include="..\..\src\Verstack.Nbt\Verstack.Nbt.csproj" />
     </ItemGroup>
 
 </Project>

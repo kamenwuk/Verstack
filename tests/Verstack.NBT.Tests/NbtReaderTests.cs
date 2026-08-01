@@ -1,3 +1,5 @@
+using Verstack.Nbt.Writer;
+
 namespace Verstack.Nbt.Tests;
 
 /// <summary>

@@ -1,7 +1,6 @@
-using System;
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Nbt;
+namespace Verstack.Nbt.Writer;
 
 /// <summary>
 /// Расширения <see cref="NbtWriter"/> для массивов NBT (TAG_Byte_Array / TAG_Int_Array / TAG_Long_Array).

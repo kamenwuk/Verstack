@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Nbt;
+namespace Verstack.Nbt.Writer;
 
 /// <summary>
 /// Fluent API (цепочки вызовов) для NbtWriter.

@@ -1,5 +1,5 @@
-using System;
 using BenchmarkDotNet.Attributes;
+using Verstack.Nbt.Writer;
 using Verstack.Nbt;
 
 [ShortRunJob]
