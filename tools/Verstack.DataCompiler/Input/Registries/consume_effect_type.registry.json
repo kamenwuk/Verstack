@@ -1,0 +1,7 @@
+[
+  "minecraft:apply_effects",
+  "minecraft:remove_effects",
+  "minecraft:clear_all_effects",
+  "minecraft:teleport_randomly",
+  "minecraft:play_sound"
+]

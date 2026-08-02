@@ -2,6 +2,9 @@
 using Verstack.Layer.Global;
 using Verstack.Layer.Realm;
 using Verstack.Lifecycle;
+using Verstack.Shared.Assets;
+
+AssetSource.PreloadTagBatch();
 
 // 1. Создаем точку входа
 var entryPoint = new EntryPoint();

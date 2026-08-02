@@ -1,0 +1,13 @@
+[
+  "minecraft:empty",
+  "minecraft:any_fuel",
+  "minecraft:with_any_potion",
+  "minecraft:only_with_component",
+  "minecraft:item",
+  "minecraft:item_stack",
+  "minecraft:tag",
+  "minecraft:dyed",
+  "minecraft:smithing_trim",
+  "minecraft:with_remainder",
+  "minecraft:composite"
+]

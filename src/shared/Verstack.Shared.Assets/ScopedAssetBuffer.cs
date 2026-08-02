@@ -1,25 +1,24 @@
-using Microsoft.Win32.SafeHandles;
 using System.Buffers;
+using Microsoft.Win32.SafeHandles;
 
-namespace Verstack.Nbt.Assets;
+namespace Verstack.Shared.Assets;
 
 /// <summary>
-/// Временный буфер NBT. Читает бинарный файл напрямую в буфер из ArrayPool.
+/// Временный буфер актива. Читает бинарный файл напрямую в буфер из ArrayPool.
 /// Живет только в области видимости (в блоке using).
 /// </summary>
-public ref struct ScopedNbtBuffer
+public ref struct ScopedAssetBuffer
 {
     private byte[]? _rentedBuffer;
     public ReadOnlySpan<byte> Data { get; }
 
-    // Вот конструктор с 2 параметрами
-    private ScopedNbtBuffer(byte[] buffer, int length)
+    private ScopedAssetBuffer(byte[] buffer, int length)
     {
         _rentedBuffer = buffer;
         Data = buffer.AsSpan(0, length);
     }
 
-    public static ScopedNbtBuffer Load(string filePath)
+    public static ScopedAssetBuffer Load(string filePath)
     {
         // 1. Открываем дескриптор файла напрямую (дешево, без создания FileStream)
         SafeFileHandle handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.None);
@@ -42,7 +41,7 @@ public ref struct ScopedNbtBuffer
                 throw new EndOfStreamException($"Не удалось прочитать весь файл {filePath}.");
             }
 
-            return new ScopedNbtBuffer(buffer, bytesRead);
+            return new ScopedAssetBuffer(buffer, bytesRead);
         }
         finally
         {

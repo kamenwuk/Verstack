@@ -1,11 +1,11 @@
 using System.Buffers;
 
-namespace Verstack.Nbt.Assets;
+namespace Verstack.Shared.Assets;
 
 /// <summary>
-/// Закэшированный буфер NBT. Держится в памяти до явной выгрузки (Unload).
+/// Закэшированный буфер актива. Держится в памяти до явной выгрузки (Unload).
 /// </summary>
-public sealed class CachedNbtBuffer
+public sealed class CachedAssetBuffer
 {
     private byte[]? _buffer;
     public ReadOnlyMemory<byte> Data { get; private set; }

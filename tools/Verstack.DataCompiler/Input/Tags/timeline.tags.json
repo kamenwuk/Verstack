@@ -1,0 +1,12 @@
+{
+  "minecraft:in_end": [],
+  "minecraft:in_nether": [],
+  "minecraft:in_overworld": [
+    "minecraft:day",
+    "minecraft:moon",
+    "minecraft:early_game"
+  ],
+  "minecraft:universal": [
+    "minecraft:villager_schedule"
+  ]
+}
