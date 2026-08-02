@@ -23,13 +23,13 @@ namespace Verstack.Layer.Gateway
                 
                 var reader = packet.CreateReader();
 
-                if (reader.IsFaulted)
-                    return -1;
-                
                 int protocolVersion = reader.ReadVarInt();
                 ReadOnlyUtf8Span serverAddress = reader.ReadString();
                 ushort serverPort = reader.ReadUShort();
                 int nextState = reader.ReadVarInt();
+                
+                if (reader.IsFaulted)
+                    return -1;
                 
                 if (nextState != 1 && nextState != 2)
                     return -1;
