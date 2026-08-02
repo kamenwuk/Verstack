@@ -32,7 +32,7 @@ public class PacketOutboundBenchmarks
         {
             var writer = outbound.Begin();
             writer.WriteVarInt(42)
-                 .WriteSpanRaw(_testPayload);
+                 .WriteSpan(_testPayload);
             outbound.Commit(ref writer);
             
             outbound.Flush();
@@ -54,15 +54,15 @@ public class PacketOutboundBenchmarks
         try
         {
             var writer = outbound.Begin();
-            writer.WriteVarInt(42).WriteSpanRaw(_testPayload);
+            writer.WriteVarInt(42).WriteSpan(_testPayload);
             outbound.Commit(ref writer);
 
             writer = outbound.Begin();
-            writer.WriteVarInt(42).WriteSpanRaw(_testPayload);
+            writer.WriteVarInt(42).WriteSpan(_testPayload);
             outbound.Commit(ref writer);
 
             writer = outbound.Begin();
-            writer.WriteVarInt(42).WriteSpanRaw(_testPayload);
+            writer.WriteVarInt(42).WriteSpan(_testPayload);
             outbound.Commit(ref writer);
 
             outbound.Flush();
@@ -84,13 +84,13 @@ public class PacketOutboundBenchmarks
         try
         {
             var writer = outbound.Begin();
-            writer.WriteVarInt(42).WriteSpanRaw(_testPayload);
+            writer.WriteVarInt(42).WriteSpan(_testPayload);
             outbound.Commit(ref writer);
 
             outbound.EnableCompression(256);
 
             writer = outbound.Begin();
-            writer.WriteVarInt(42).WriteSpanRaw(_testPayload);
+            writer.WriteVarInt(42).WriteSpan(_testPayload);
             outbound.Commit(ref writer);
 
             outbound.Flush();

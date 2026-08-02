@@ -1,6 +1,5 @@
-using Verstack.Network.DataTypes;
+using Verstack.Network.Packet.Readers;
 using Verstack.Network.Packet;
-using System.Buffers;
 
 namespace Verstack.Layer.Gateway
 {
@@ -21,18 +20,22 @@ namespace Verstack.Layer.Gateway
             
             try
             {
-                var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
+                
+                var reader = packet.CreateReader();
 
-                int protocolVersion = VarInt.Read(ref reader);
-                string serverAddress = Utf8String.Read(ref reader);
-                ushort serverPort = Numeric.ReadUShort(ref reader);
-                int nextState = VarInt.Read(ref reader);
-
+                if (reader.IsFaulted)
+                    return -1;
+                
+                int protocolVersion = reader.ReadVarInt();
+                ReadOnlyUtf8Span serverAddress = reader.ReadString();
+                ushort serverPort = reader.ReadUShort();
+                int nextState = reader.ReadVarInt();
+                
                 if (nextState != 1 && nextState != 2)
                     return -1;
                 
                 data.protocolVersion = protocolVersion;
-                data.serverAddress = serverAddress;
+                data.serverAddress = serverAddress.ToString();
                 data.serverPort = serverPort;
                 return nextState;
             }

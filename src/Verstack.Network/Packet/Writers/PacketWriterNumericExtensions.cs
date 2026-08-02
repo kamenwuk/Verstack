@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Buffers.Binary;
 
 namespace Verstack.Network.Packet.Writers;
 
@@ -7,65 +8,92 @@ namespace Verstack.Network.Packet.Writers;
 /// </summary>
 public static class PacketWriterNumericExtensions
 {
-    // ─────────────────────────  VarInt / VarLong  ─────────────────────────
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteVarInt(this ref PacketStreamWriter streamWriter, int value)
+    extension(ref PacketStreamWriter streamWriter)
     {
-        uint v = (uint)value;
-        do
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteVarInt(int value)
         {
-            byte temp = (byte)(v & 0x7F);
-            v >>= 7;
-            if (v != 0) temp |= 0x80;
-            streamWriter.WriteByteRaw(temp);
-        } while (v != 0);
-        return ref streamWriter;
-    }
+            uint v = (uint)value;
+            do
+            {
+                byte temp = (byte)(v & 0x7F);
+                v >>= 7;
+                if (v != 0) temp |= 0x80;
+                streamWriter.WriteByte(temp);
+            } while (v != 0);
+            return ref streamWriter;
+        }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteVarLong(this ref PacketStreamWriter streamWriter, long value)
-    {
-        ulong v = (ulong)value;
-        do
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteVarLong(long value)
         {
-            byte temp = (byte)(v & 0x7F);
-            v >>= 7;
-            if (v != 0) temp |= 0x80;
-            streamWriter.WriteByteRaw(temp);
-        } while (v != 0);
-        return ref streamWriter;
+            ulong v = (ulong)value;
+            do
+            {
+                byte temp = (byte)(v & 0x7F);
+                v >>= 7;
+                if (v != 0) temp |= 0x80;
+                streamWriter.WriteByte(temp);
+            } while (v != 0);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteShort(short value)
+        {
+            streamWriter.EnsureCapacity(2);
+            BinaryPrimitives.WriteInt16BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), value);
+            streamWriter.Advance(2);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteUShort(ushort value)
+        {
+            streamWriter.EnsureCapacity(2);
+            BinaryPrimitives.WriteUInt16BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), value);
+            streamWriter.Advance(2);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteInt(int value)
+        {
+            streamWriter.EnsureCapacity(4);
+            BinaryPrimitives.WriteInt32BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), value);
+            streamWriter.Advance(4);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteLong(long value)
+        {
+            streamWriter.EnsureCapacity(8);
+            BinaryPrimitives.WriteInt64BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), value);
+            streamWriter.Advance(8);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteFloat(float value)
+        {
+            streamWriter.EnsureCapacity(4);
+            BinaryPrimitives.WriteInt32BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), BitConverter.SingleToInt32Bits(value));
+            streamWriter.Advance(4);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteDouble(double value)
+        {
+            streamWriter.EnsureCapacity(8);
+            BinaryPrimitives.WriteInt64BigEndian(streamWriter.Buffer.AsSpan(streamWriter.Offset), BitConverter.DoubleToInt64Bits(value));
+            streamWriter.Advance(8);
+            return ref streamWriter;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref PacketStreamWriter WriteBool(bool value) 
+            => ref streamWriter.WriteByte(value ? (byte)1 : (byte)0);
     }
-
-    // ─────────────────────────  Numerics  ─────────────────────────
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteShort(this ref PacketStreamWriter streamWriter, short value) 
-        => ref streamWriter.WriteShortRaw(value);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteUShort(this ref PacketStreamWriter streamWriter, ushort value) 
-        => ref streamWriter.WriteUShortRaw(value);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteInt(this ref PacketStreamWriter streamWriter, int value) 
-        => ref streamWriter.WriteIntRaw(value);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteLong(this ref PacketStreamWriter streamWriter, long value) 
-        => ref streamWriter.WriteLongRaw(value);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteFloat(this ref PacketStreamWriter streamWriter, float value) 
-        => ref streamWriter.WriteIntRaw(BitConverter.SingleToInt32Bits(value));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteDouble(this ref PacketStreamWriter streamWriter, double value) 
-        => ref streamWriter.WriteLongRaw(BitConverter.DoubleToInt64Bits(value));
-
-    // ─────────────────────────  Booleans  ─────────────────────────
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref PacketStreamWriter WriteBool(this ref PacketStreamWriter streamWriter, bool value) 
-        => ref streamWriter.WriteByteRaw(value ? (byte)1 : (byte)0);
 }

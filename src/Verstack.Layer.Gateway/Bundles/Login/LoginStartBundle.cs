@@ -1,12 +1,13 @@
 using Verstack.Network.Packet.Writers;
-using Verstack.Network.DataTypes;
+using Verstack.Network.Packet.Readers;
+using System.Security.Cryptography;
 using Verstack.Layer.Global.User;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
 using Verstack.Lifecycle;
 using Verstack.Debug;
-using System.Buffers;
+using System.Text;
 
 namespace Verstack.Layer.Gateway.Bundles;
 
@@ -36,14 +37,17 @@ internal sealed class LoginStartBundle : PacketBundle
         if (packet.Id != 0x00) // Login Start
             return PacketHandleResult.Kick;
 
-        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
-        string name = Utf8String.Read(ref reader);
-        _ = Uuid.Read(ref reader); // UUID клиента игнорируем: offline-режим генерирует свой
+        var reader = packet.CreateReader();
+        ReadOnlyUtf8Span name = reader.ReadString();
+        _ = reader.ReadUuid(); // UUID клиента игнорируем: offline-режим генерирует свой
 
-        Guid offlineUuid = Uuid.GenerateOfflinePlayer(name);
-        _cache.UserProfiles.GetOrAdd(entity) = new UserProfile(offlineUuid, name, "none");
+        if (reader.IsFaulted)
+            return PacketHandleResult.Kick;
+        
+        Guid offlineUuid = GenerateOfflinePlayer(name.ToString());
+        _cache.UserProfiles.GetOrAdd(entity) = new UserProfile(offlineUuid, name.ToString(), "none");
 
-        Logger.Debug(LogKey.PacketLoginStart, name);
+        Logger.Debug(LogKey.PacketLoginStart, name.ToString());
 
         // Set Compression (0x03) — несжатый (compression ещё не включена).
         if (ServerConstants.COMPRESSION_THRESHOLD >= 0)
@@ -60,12 +64,41 @@ internal sealed class LoginStartBundle : PacketBundle
         var loginSuccess = outbound.Begin();
         loginSuccess.WriteVarInt(0x02)          // Login Success ID
             .WriteUuid(offlineUuid)             // Game Profile.UUID
-            .WriteString(name)                  // Game Profile.Username
+            .WriteString(name.AsSpan())                  // Game Profile.Username
             .WriteVarInt(0)                     // Game Profile.Properties count
             .WriteUuid(Guid.NewGuid());         // Session ID (поле 776)
         
         outbound.Commit(ref loginSuccess);
         
         return PacketHandleResult.Accepted;
+    }
+    
+    /// <summary>
+    /// Генерирует offline-UUID (версия 3) для имени игрока. Повторяет семантику
+    /// <c>java.util.UUID.nameUUIDFromBytes</c> ванильного сервера: MD5 от UTF-8 байтов строки
+    /// <c>"OfflinePlayer:" + name</c>, с выставлением version=3 и variant RFC 4122.
+    ///
+    /// Префикс <c>"OfflinePlayer:"</c> — код самого ванильного сервера (<c>ServerLoginPacketListenerImpl</c>),
+    /// не конвенция плагинов. Он даёт детерминированный, воспроизводимый UUID для одного имени —
+    /// ключ к данным игрока, единый с другими offline-серверами и перезапусками.
+    /// </summary>
+    private static Guid GenerateOfflinePlayer(string name)
+    {
+        // Префикс — чистый ASCII ("OfflinePlayer:" = 14 байт), имя — UTF-8 (до 16 символов по протоколу).
+        // Cold path: раз на соединение при логине, простая аллокация честнее ручного stackalloc-трюка.
+        const string prefix = "OfflinePlayer:";
+        byte[] input = new byte[prefix.Length + Encoding.UTF8.GetByteCount(name)];
+        Encoding.ASCII.GetBytes(prefix, 0, prefix.Length, input, 0);
+        Encoding.UTF8.GetBytes(name, 0, name.Length, input, prefix.Length);
+
+        Span<byte> hash = stackalloc byte[16];
+        MD5.HashData(input, hash);
+
+        // version = 3 (name-based, MD5): верхние 4 бита 7-го байта (index 6) → 0011.
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x30);
+        // variant = RFC 4122: верхние 2 бита 9-го байта (index 8) → 10.
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
+
+        return new Guid(hash, bigEndian: true);
     }
 }

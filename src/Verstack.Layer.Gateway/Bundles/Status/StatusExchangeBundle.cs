@@ -33,7 +33,7 @@ internal sealed class StatusExchangeBundle : PacketBundle
             
         writer.WriteVarInt(0x00)               // Status Response ID
             .WriteVarInt(json.Length)        // JSON string length
-            .WriteSpanRaw(json);             // JSON string payload
+            .WriteSpan(json);             // JSON string payload
             
         outbound.Commit(ref writer);
 

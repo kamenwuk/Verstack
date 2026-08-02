@@ -3,14 +3,10 @@ using BenchmarkDotNet.Attributes;
 
 namespace Verstack.Network.Benchmarks;
 
-// Включаем сбор статистики по памяти и аллокациям
 [MemoryDiagnoser]
 public class PacketWriterBenchmarks
 {
-    // Буфер, в который мы будем писать пакет (имитация outbound.PayloadBuffer)
     private byte[] _payloadBuffer = null!;
-    
-    // Данные для тестов
     private string _minecraftOverworldString = null!;
     private ReadOnlySpan<byte> _minecraftOverworldUtf8 => "minecraft:overworld"u8;
     private Guid _testUuid;
@@ -23,13 +19,11 @@ public class PacketWriterBenchmarks
         _testUuid = Guid.NewGuid();
     }
 
-    // ─────────────────────────  Тесты примитивов  ─────────────────────────
-
     [Benchmark(Baseline = true)]
     public int WriteVarInt()
     {
         var writer = new PacketStreamWriter(_payloadBuffer);
-        writer.WriteVarInt(2147483647); // Максимальный VarInt (5 байт)
+        writer.WriteVarInt(2147483647);
         return writer.Written;
     }
 
@@ -65,36 +59,34 @@ public class PacketWriterBenchmarks
         return writer.Written;
     }
 
-    // ─────────────────────  Комплексный тест (Сборка пакета)  ─────────────────────
-
     [Benchmark]
     public int AssemblePlayLoginPacket()
     {
         var writer = new PacketStreamWriter(_payloadBuffer);
         
-        writer.WriteVarInt(0x31)                        // Packet ID
-              .WriteInt(1)                              // Entity ID
-              .WriteBool(false)                         // Is Hardcore
-              .WriteVarInt(1)                           // Dimension Count
-              .WriteString(_minecraftOverworldUtf8)     // Dimension Names
-              .WriteVarInt(20)                          // Max Players
-              .WriteVarInt(10)                          // View Distance
-              .WriteVarInt(10)                          // Simulation Distance
-              .WriteBool(false)                         // Reduced Debug Info
-              .WriteBool(true)                          // Enable Respawn Screen
-              .WriteBool(false)                         // Do Limited Crafting
-              .WriteVarInt(0)                           // Dimension Type
-              .WriteString(_minecraftOverworldUtf8)     // Dimension
-              .WriteLong(0)                             // Seed
-              .WriteByteRaw(1)                          // Game Mode (Creative)
-              .WriteByteRaw(0xFF)                       // Previous Game Mode
-              .WriteBool(false)                         // Is Debug
-              .WriteBool(false)                         // Is Flat
-              .WriteBool(false)                         // Has Death Location
-              .WriteVarInt(0)                           // Portal Cooldown
-              .WriteVarInt(63)                          // Sea Level
-              .WriteBool(false)                         // Online Mode
-              .WriteBool(false);                        // Enforces Secure Chat
+        writer.WriteVarInt(0x31)
+              .WriteInt(1)
+              .WriteBool(false)
+              .WriteVarInt(1)
+              .WriteString(_minecraftOverworldUtf8)
+              .WriteVarInt(20)
+              .WriteVarInt(10)
+              .WriteVarInt(10)
+              .WriteBool(false)
+              .WriteBool(true)
+              .WriteBool(false)
+              .WriteVarInt(0)
+              .WriteString(_minecraftOverworldUtf8)
+              .WriteLong(0)
+              .WriteByte(1)
+              .WriteByte(0xFF)
+              .WriteBool(false)
+              .WriteBool(false)
+              .WriteBool(false)
+              .WriteVarInt(0)
+              .WriteVarInt(63)
+              .WriteBool(false)
+              .WriteBool(false);
 
         return writer.Written;
     }

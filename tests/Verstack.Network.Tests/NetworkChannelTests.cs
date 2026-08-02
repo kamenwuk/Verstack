@@ -1,3 +1,6 @@
+using System.Net.Sockets;
+using System.Net;
+
 namespace Verstack.Network.Tests;
 
 public class NetworkChannelTests
@@ -21,5 +24,26 @@ public class NetworkChannelTests
         channel.Disconnect();
         // нет исключений — успех
         Assert.True(true);
+    }
+
+    private class FakeNetworkChannel() : NetworkChannel(CreateDummySocket())
+    {
+        private static Socket CreateDummySocket()
+        {
+            var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            listener.Listen(1);
+
+            var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        
+            EndPoint? remoteEp = listener.LocalEndPoint;
+            if (remoteEp is null)
+                throw new InvalidOperationException("LocalEndPoint was null after Bind");
+
+            client.Connect(remoteEp);
+            var server = listener.Accept();
+            listener.Close();
+            return server;
+        }
     }
 }

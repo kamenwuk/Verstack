@@ -4,6 +4,24 @@ using System.Buffers;
 
 namespace Verstack.Network.Packet;
 
+/// <summary>
+/// Управляет жизненным циклом формирования исходящих пакетов: арендой буферов, фреймингом и постановкой в очередь отправки.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Реализует паттерн <c>Begin/Commit/Flush</c>. 
+/// Сначала арендуется буфер для полезной нагрузки (<c>Begin</c>), затем данные фреймируются и сжимаются (<c>Commit</c>), 
+/// и, наконец, готовый кадр передаётся в очередь отправки (<c>Flush</c>).
+/// </para>
+/// <para>
+/// Поддерживает батчинг: несколько вызовов <c>Begin/Commit</c> могут накапливаться в одном фреймовом буфере 
+/// перед вызовом <c>Flush</c>, что уменьшает количество системных вызовов при отправке.
+/// </para>
+/// <para>
+/// При вызове <c>Flush</c> происходит передача владения массивом очереди отправки (zero-copy). 
+/// Внутренняя ссылка обнуляется, чтобы предотвратить двойной возврат массива в пул.
+/// </para>
+/// </remarks>
 public ref struct PacketOutbound : IDisposable
 {
     private const int INITIAL_PAYLOAD_SIZE = 2048;
@@ -20,6 +38,9 @@ public ref struct PacketOutbound : IDisposable
     private bool _isWriting;
 #endif
 
+    /// <summary>
+    /// Инициализирует экземпляр с привязкой к сетевому каналу и компрессору.
+    /// </summary>
     internal PacketOutbound(NetworkChannel channel, IPacketCompressor compressor)
     {
         _channel = channel;
@@ -29,6 +50,10 @@ public ref struct PacketOutbound : IDisposable
         _frameOffset = 0;
     }
 
+    /// <summary>
+    /// Начинает формирование нового пакета. Арендует буфер для полезной нагрузки.
+    /// </summary>
+    /// <returns>Писатель для записи сырых данных пакета.</returns>
     public PacketStreamWriter Begin()
     {
 #if DEBUG
@@ -40,6 +65,10 @@ public ref struct PacketOutbound : IDisposable
         return new PacketStreamWriter(_payloadArray);
     }
 
+    /// <summary>
+    /// Завершает формирование пакета. Применяет фрейминг и сжатие к записанным данным и добавляет результат во фреймовый буфер.
+    /// </summary>
+    /// <param name="streamWriter">Писатель, полученный из <c>Begin()</c>.</param>
     public void Commit(scoped ref PacketStreamWriter streamWriter)
     {
         // Если payload вырос внутри streamWriter, обновляем ссылку у себя
@@ -61,6 +90,10 @@ public ref struct PacketOutbound : IDisposable
 #endif
     }
 
+    /// <summary>
+    /// Передаёт накопленные фреймы в очередь отправки сетевого канала. 
+    /// Передаёт владение массивом без копирования (zero-copy).
+    /// </summary>
     public void Flush()
     {
 #if DEBUG
@@ -79,8 +112,14 @@ public ref struct PacketOutbound : IDisposable
         }
     }
 
+    /// <summary>
+    /// Устанавливает порог сжатия для исходящих пакетов.
+    /// </summary>
     public void EnableCompression(int threshold) => _channel.CompressionThreshold = threshold;
 
+    /// <summary>
+    /// Сбрасывает оставшиеся данные (вызывает <c>Flush</c>) и возвращает арендованные буферы в пул, если они не были переданы в очередь.
+    /// </summary>
     public void Dispose()
     {
         Flush();

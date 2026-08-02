@@ -1,11 +1,10 @@
 using Verstack.Network.Packet.Writers;
+using Verstack.Network.Packet.Readers;
 using Verstack.Layer.Global.User;
-using Verstack.Network.DataTypes;
 using Verstack.Network.Packet;
 using Leopotam.EcsProto.QoL;
 using Verstack.Lifecycle;
 using Leopotam.EcsProto;
-using System.Buffers;
 using Verstack.Debug;
 
 namespace Verstack.Layer.Gateway.Bundles;
@@ -37,13 +36,17 @@ internal sealed class ClientInformationBundle : PacketBundle
         if (packet.Id != 0x00) // Client Information
             return PacketHandleResult.Kick;
 
-        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
-        string locale = Utf8String.Read(ref reader);
+        var reader = packet.CreateReader();
+        //var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(packet.Data));
+        ReadOnlyUtf8Span locale = reader.ReadString();
 
+        if (reader.IsFaulted)
+            return PacketHandleResult.Kick;
+        
         // Сохраняем locale в профиль — пригодится в Play (локализация серверных сообщений).
         ref var profile = ref _cache.UserProfiles.Get(entity);
-        profile = new UserProfile(profile.Uuid, profile.Username, locale);
-        Logger.Debug(LogKey.PacketClientInformation, locale);
+        profile = new UserProfile(profile.Uuid, profile.Username, locale.ToString());
+        Logger.Debug(LogKey.PacketClientInformation, profile.Locale);
 
         // S→C Known Packs (0x0E): один пак minecraft:core@26.2.
 

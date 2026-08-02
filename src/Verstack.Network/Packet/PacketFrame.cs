@@ -1,26 +1,37 @@
 using Verstack.Network.Packet.Writers;
+using System.Runtime.CompilerServices;
 using Verstack.Network.Compression;
-using Verstack.Network.DataTypes;
 using System.Buffers;
 
 namespace Verstack.Network.Packet;
 
 /// <summary>
-/// Фрейминг пакетов Minecraft: разбор и упаковка кадров с учётом порога сжатия.
-///
-/// Несжатый framing: <c>[VarInt(PacketLength)][VarInt(PacketId) + data]</c>.
-/// Compressed framing (compressionThreshold ≥ 0): <c>[VarInt(PacketLength)][VarInt(DataLength) + payload]</c>,
-/// где payload — либо несжатый (DataLength=0, пакет меньше threshold), либо zlib-сжатый (DataLength=N).
-/// Контракт исходящих данных одинаковый для обоих режимов: <c>[VarInt(PacketId) + data]</c> —
-/// framing-слой сам заворачивает в правильный кадр.
+/// Обеспечивает фрейминг пакетов протокола: разбор и упаковку кадров с учётом порога сжатия.
 /// </summary>
+/// <remarks>
+/// Форматы кадров:
+/// <list type="bullet">
+///   <item>Несжатый: <c>[VarInt(PacketLength)][VarInt(PacketId) + data]</c>.</item>
+///   <item>Сжатый (compressionThreshold ≥ 0): <c>[VarInt(PacketLength)][VarInt(DataLength) + payload]</c>,
+///     где payload — либо несжатый (DataLength=0, если размер меньше threshold), либо zlib-сжатый (DataLength=N).</item>
+/// </list>
+/// Контракт исходящих данных одинаковый для обоих режимов: на вход подаётся <c>[VarInt(PacketId) + data]</c>,
+/// а слой фрейминга сам заворачивает его в правильный кадр.
+/// </remarks>
 public static class PacketFrame
 {
     /// <summary>
-    /// Разбирает один кадр из <paramref name="buffer"/> с учётом порога сжатия.
-    /// При <see cref="PacketFrameResult.Complete"/> возвращает пакет и <paramref name="consumed"/> —
-    /// позицию, до которой буфер можно сдвинуть. В остальных случаях буфер НЕ трогать.
+    /// Разбирает один кадр из буфера с учётом порога сжатия.
     /// </summary>
+    /// <param name="buffer">Входной буфер данных.</param>
+    /// <param name="compressionThreshold">Порог сжатия. Значение меньше 0 отключает сжатие.</param>
+    /// <param name="decompressor">Декомпрессор для распаковки zlib-потока.</param>
+    /// <param name="packetId">Извлечённый идентификатор пакета.</param>
+    /// <param name="data">Извлечённая полезная нагрузка пакета (без идентификатора).</param>
+    /// <param name="consumed">Позиция, до которой буфер можно сдвинуть после успешного чтения.</param>
+    /// <returns>Результат попытки разобрать кадр. 
+    /// При <c>Complete</c> возвращает пакет и сдвиг. 
+    /// При <c>Partial</c> или <c>Malformed</c> буфер нельзя трогать.</returns>
     public static PacketFrameResult TryRead(ReadOnlySequence<byte> buffer, int compressionThreshold,
         IPacketDecompressor decompressor, out int packetId, out byte[] data, out SequencePosition consumed)
     {
@@ -30,11 +41,10 @@ public static class PacketFrame
 
         var reader = new SequenceReader<byte>(buffer);
 
-        // 1. Длина пакета (VarInt) — общий префикс для обоих framing'ов.
-        if (!VarInt.TryRead(ref reader, out int length))
+        // 1. Длина пакета (VarInt)
+        if (!TryReadVarInt(ref reader, out int length))
             return PacketFrameResult.Partial;
 
-        // Нулевая или отрицательная длина — гарантированно битый кадр.
         if (length <= 0)
             return PacketFrameResult.Malformed;
 
@@ -42,7 +52,6 @@ public static class PacketFrame
         if (reader.Remaining < length)
             return PacketFrameResult.Partial;
 
-        // 3. Запоминаем границы тела: bodyStart..packetEnd.
         var bodyStart = reader.Position;
         consumed = buffer.GetPosition(length, bodyStart);
 
@@ -54,30 +63,29 @@ public static class PacketFrame
                 : PacketFrameResult.Malformed;
         }
 
-        // --- Compressed framing: тело = [VarInt(DataLength)][payload] ---
+        // --- Compressed framing ---
         var dataLenReader = new SequenceReader<byte>(buffer.Slice(bodyStart, length));
-        if (!VarInt.TryRead(ref dataLenReader, out var dataLength))
+        if (!TryReadVarInt(ref dataLenReader, out var dataLength))
             return PacketFrameResult.Malformed;
 
-        // Consumed = сколько байт занял VarInt(DataLength) → остальное в кадре это payload.
         int payloadLength = length - (int)dataLenReader.Consumed;
         var payloadStart = dataLenReader.Position;
 
         if (dataLength == 0)
         {
-            // Пакет меньше threshold — payload несжатый: [VarInt(PacketId)][data].
             var payload = buffer.Slice(bodyStart).Slice(payloadStart);
             return ReadUncompressed(payload, payload.Start, payloadLength, out packetId, out data)
                 ? PacketFrameResult.Complete
                 : PacketFrameResult.Malformed;
         }
 
-        // Пакет сжат: декомпрессим payloadLength байт → dataLength байт = [VarInt(PacketId)][data].
+        // Пакет сжат
 #if DEBUG
         if (decompressor == null)
             throw new InvalidOperationException(
                 $"[{nameof(PacketFrame)}] Сжатый кадр (DataLength={dataLength}), но декомпрессор не задан.");
 #endif
+
         var compressed = buffer.Slice(bodyStart).Slice(payloadStart, payloadLength);
         byte[] decompressed = new byte[dataLength];
         try
@@ -90,19 +98,26 @@ public static class PacketFrame
         }
 
         var inner = new SequenceReader<byte>(new ReadOnlySequence<byte>(decompressed));
-        if (!VarInt.TryRead(ref inner, out packetId))
+        if (!TryReadVarInt(ref inner, out packetId))
             return PacketFrameResult.Malformed;
 
         int consumedInner = (int)inner.Consumed;
         int dataLen = dataLength - consumedInner;
         data = new byte[dataLen];
         decompressed.AsSpan(consumedInner, dataLen).CopyTo(data);
+        
         return PacketFrameResult.Complete;
     }
 
     /// <summary>
-    /// Несжатое тело: <c>[VarInt(PacketId)][data]</c>. <paramref name="length"/> — размер всего тела.
+    /// Разбирает несжатое тело пакета формата <c>[VarInt(PacketId)][data]</c>.
     /// </summary>
+    /// <param name="buffer">Входной буфер данных.</param>
+    /// <param name="bodyStart">Начальная позиция тела пакета в буфере.</param>
+    /// <param name="length">Общий размер тела в байтах.</param>
+    /// <param name="packetId">Извлечённый идентификатор пакета.</param>
+    /// <param name="data">Извлечённая полезная нагрузка.</param>
+    /// <returns><c>true</c>, если разбор прошёл успешно; иначе <c>false</c>.</returns>
     private static bool ReadUncompressed(ReadOnlySequence<byte> buffer, SequencePosition bodyStart, int length,
         out int packetId, out byte[] data)
     {
@@ -111,7 +126,8 @@ public static class PacketFrame
 
         var body = buffer.Slice(bodyStart, length);
         var reader = new SequenceReader<byte>(body);
-        if (!VarInt.TryRead(ref reader, out packetId))
+        
+        if (!TryReadVarInt(ref reader, out packetId))
             return false;
 
         int dataLen = length - (int)reader.Consumed;
@@ -121,49 +137,90 @@ public static class PacketFrame
     }
 
     /// <summary>
-    /// Упаковывает готовый payload (с уже записанным внутри VarInt(PacketId)) в кадр
-    /// по порогу сжатия и пишет в <paramref name="streamWriter"/>. framing-слой не разбирает
-    /// внутреннюю структуру payload — работает с ним как с чёрным ящиком.
+    /// Упаковывает готовую полезную нагрузку в кадр по порогу сжатия и записывает в поток.
     /// </summary>
+    /// <param name="streamWriter">Писатель потока для записи кадра.</param>
+    /// <param name="payload">Полезная нагрузка (должна содержать VarInt(PacketId) и данные).</param>
+    /// <param name="compressor">Компрессор для сжатия данных (может быть null, если сжатие отключено).</param>
+    /// <param name="compressionThreshold">Порог сжатия. Значение меньше 0 отключает сжатие.</param>
+    /// <remarks>
+    /// Метод не разбирает внутреннюю структуру <paramref name="payload"/> и работает с ним как с чёрным ящиком.
+    /// </remarks>
     public static void Write(ref PacketStreamWriter streamWriter, ReadOnlySpan<byte> payload,
         IPacketCompressor compressor, int compressionThreshold)
     {
         int payloadSize = payload.Length;
 
-        // --- Несжатый framing: [VarInt(payloadSize)][payload] ---
         if (compressionThreshold < 0 || compressor == null)
         {
-            streamWriter.WriteVarInt(payloadSize)
-                .WriteSpanRaw(payload);
+            streamWriter.WriteVarInt(payloadSize).WriteSpan(payload);
             return;
         }
 
-        // --- Compressed framing ---
         if (payloadSize < compressionThreshold)
         {
-            // payload меньше threshold → DataLength=0, тело несжатое.
             int packetLength = 1 + payloadSize; // VarInt(0) всегда 1 байт
-            streamWriter.WriteVarInt(packetLength)
-                .WriteVarInt(0)
-                .WriteSpanRaw(payload);
+            streamWriter.WriteVarInt(packetLength).WriteVarInt(0).WriteSpan(payload);
             return;
         }
 
-        // payload ≥ threshold → сжимаем. DataLength = payloadSize (исходная длина).
         int maxCompressed = compressor.GetMaxCompressedSize(payloadSize);
         byte[] compressed = ArrayPool<byte>.Shared.Rent(maxCompressed);
         try
         {
             int compressedLen = compressor.Compress(payload, compressed);
-
-            int innerLen = VarInt.GetSize(payloadSize) + compressedLen;
+            int innerLen = GetVarIntSize(payloadSize) + compressedLen;
+            
             streamWriter.WriteVarInt(innerLen)
                 .WriteVarInt(payloadSize)
-                .WriteSpanRaw(compressed.AsSpan(0, compressedLen));
+                .WriteSpan(compressed.AsSpan(0, compressedLen));
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(compressed);
         }
+    }
+
+    /// <summary>
+    /// Пытается прочитать 32-битное значение переменной длины (VarInt) из последовательности.
+    /// </summary>
+    /// <param name="reader">Читатель последовательности байт.</param>
+    /// <param name="value">Прочитанное значение.</param>
+    /// <returns><c>true</c>, если чтение успешно; <c>false</c> при нехватке данных или превышении лимита в 5 байт.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryReadVarInt(ref SequenceReader<byte> reader, out int value)
+    {
+        value = 0;
+        int shift = 0;
+        byte b;
+
+        do
+        {
+            if (!reader.TryRead(out b))
+                return false;
+
+            value |= (b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0 && shift < 35);
+
+        if ((b & 0x80) != 0)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Вычисляет количество байт, необходимое для записи значения в формате VarInt.
+    /// </summary>
+    /// <param name="value">Значение для кодирования.</param>
+    /// <returns>Размер в байтах (от 1 до 5).</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetVarIntSize(int value)
+    {
+        if ((value & (0xFFFFFFFF << 7)) == 0) return 1;
+        if ((value & (0xFFFFFFFF << 14)) == 0) return 2;
+        if ((value & (0xFFFFFFFF << 21)) == 0) return 3;
+        if ((value & (0xFFFFFFFF << 28)) == 0) return 4;
+        return 5;
     }
 }
