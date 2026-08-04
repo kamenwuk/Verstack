@@ -9,7 +9,7 @@ internal static class NbtCompiler
     public static void Compile(string json, string outputDir, string relativePath, Span<byte> buffer, Span<NbtFrame> frames)
     {
         using JsonDocument doc = JsonDocument.Parse(json);
-        var writer = new NbtWriter(buffer, frames, networked: true);
+        var writer = new NbtStreamWriter(buffer, frames, networked: true);
         writer.WriteJsonRoot(doc.RootElement);
         ReadOnlySpan<byte> nbtBytes = writer.Finish();
 

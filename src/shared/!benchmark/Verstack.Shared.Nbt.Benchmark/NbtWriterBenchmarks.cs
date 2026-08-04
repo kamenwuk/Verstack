@@ -30,7 +30,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteCompound_SimplePrimitives()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound()
             .WriteByte("byte"u8, 127)
             .WriteShort("short"u8, 32000)
@@ -47,7 +47,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteCompound_Nested()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginCompound("inner"u8);
         writer.WriteInt("x"u8, 10);
@@ -63,7 +63,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteList_100_Ints()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginList("numbers"u8, NbtTagType.Int, 100);
         for (int i = 0; i < 100; i++)
@@ -76,7 +76,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteList_OfStrings()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginList("words"u8, NbtTagType.String, 20);
         writer.WriteListItemString("alpha"u8);
@@ -97,7 +97,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteByteArray_ViaList()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginList("data"u8, NbtTagType.Byte, 1000);
         for (int i = 0; i < 1000; i++)
@@ -111,7 +111,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteIntArray_ViaList()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginList("ints"u8, NbtTagType.Int, 1000);
         for (int i = 0; i < 1000; i++)
@@ -127,7 +127,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteDeepCompound()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         for (int i = 0; i < 10; i++)
             writer.BeginCompound("level"u8);
@@ -142,7 +142,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteEmptyCompoundAndList()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginCompound("emptyCompound"u8);
         writer.EndCompound();
@@ -159,7 +159,7 @@ public class NbtWriterBenchmarks
         int total = 0;
         for (int i = 0; i < 100; i++)
         {
-            var writer = new NbtWriter(_buffer, _frames, Networked);
+            var writer = new NbtStreamWriter(_buffer, _frames, Networked);
             writer.BeginRootCompound();
             writer.WriteInt("i"u8, i);
             writer.EndCompound();
@@ -172,7 +172,7 @@ public class NbtWriterBenchmarks
     [Benchmark]
     public int WriteList_1000_Doubles()
     {
-        var writer = new NbtWriter(_buffer, _frames, Networked);
+        var writer = new NbtStreamWriter(_buffer, _frames, Networked);
         writer.BeginRootCompound();
         writer.BeginList("doubles"u8, NbtTagType.Double, 1000);
         for (int i = 0; i < 1000; i++)

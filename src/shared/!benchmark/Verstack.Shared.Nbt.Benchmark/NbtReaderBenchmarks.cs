@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using Verstack.Shared.Nbt.Reader;
 using Verstack.Shared.Nbt.Writer;
 
 namespace Verstack.Shared.Nbt.Benchmark;
@@ -46,7 +47,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound()
             .WriteByte("byte"u8, 127)
             .WriteShort("short"u8, 32000)
@@ -64,7 +65,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound()
             .BeginCompound("inner"u8)
                 .WriteInt("x"u8, 10)
@@ -81,7 +82,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[1024];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.BeginList("numbers"u8, NbtTagType.Int, 100);
         for (int i = 0; i < 100; i++) writer.WriteListItemInt(i);
@@ -94,7 +95,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[1024];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.BeginList("words"u8, NbtTagType.String, 20);
         writer.WriteListItemString("alpha"u8); writer.WriteListItemString("beta"u8); writer.WriteListItemString("gamma"u8);
@@ -109,7 +110,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[4096];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.WriteString("big"u8, "bigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbibigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbigbiggbigbigbigbigbig"u8);
         writer.EndCompound();
@@ -120,7 +121,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = new byte[2000]; // достаточно для 1000 байт
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.BeginList("data"u8, NbtTagType.Byte, 1000);
         for (int i = 0; i < 1000; i++) writer.WriteListItemByte((sbyte)(i & 0xFF));
@@ -133,7 +134,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = new byte[5000]; // 1000 * 4 + заголовки
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.BeginList("ints"u8, NbtTagType.Int, 1000);
         for (int i = 0; i < 1000; i++) writer.WriteListItemInt(i);
@@ -146,7 +147,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         for (int i = 0; i < 10; i++) writer.BeginCompound("level"u8);
         writer.WriteInt("value"u8, 42);
@@ -159,7 +160,7 @@ public class NbtReaderBenchmarks
     {
         Span<byte> buf = stackalloc byte[128];
         Span<NbtFrame> frames = stackalloc NbtFrame[MaxDepth];
-        var writer = new NbtWriter(buf, frames, networked);
+        var writer = new NbtStreamWriter(buf, frames, networked);
         writer.BeginRootCompound();
         writer.BeginCompound("emptyCompound"u8);
         writer.EndCompound();
@@ -173,7 +174,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadCompound_SimplePrimitives()
     {
-        var reader = new NbtReader(_simpleCompoundData, _frames, Networked);
+        var reader = new NbtStreamReader(_simpleCompoundData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryReadByte("byte"u8, out sbyte b);
         reader.TryReadShort("short"u8, out short s);
@@ -191,7 +192,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadCompound_Nested()
     {
-        var reader = new NbtReader(_nestedCompoundData, _frames, Networked);
+        var reader = new NbtStreamReader(_nestedCompoundData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryEnterCompound("inner"u8);
         reader.TryReadInt("x"u8, out int x);
@@ -208,7 +209,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadList_100_Ints()
     {
-        var reader = new NbtReader(_list100IntsData, _frames, Networked);
+        var reader = new NbtStreamReader(_list100IntsData, _frames, Networked);
         reader.EnterRootCompound();
         bool ok = reader.TryEnterList("numbers"u8, out _, out int count);
         if (!ok) throw new Exception();
@@ -223,7 +224,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadList_OfStrings()
     {
-        var reader = new NbtReader(_listOfStringsData, _frames, Networked);
+        var reader = new NbtStreamReader(_listOfStringsData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryEnterList("words"u8, out _, out int count);
         int len = 0;
@@ -241,7 +242,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadLargeString()
     {
-        var reader = new NbtReader(_largeStringData, _frames, Networked);
+        var reader = new NbtStreamReader(_largeStringData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryReadString("big"u8, _stringBuf, out int bigLen);
         reader.SkipRemaining();
@@ -252,7 +253,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadByteArray_ViaList()
     {
-        var reader = new NbtReader(_byteArrayViaListData, _frames, Networked);
+        var reader = new NbtStreamReader(_byteArrayViaListData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryEnterList("data"u8, out _, out int count);
         int sum = 0;
@@ -266,7 +267,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadIntArray_ViaList()
     {
-        var reader = new NbtReader(_intArrayViaListData, _frames, Networked);
+        var reader = new NbtStreamReader(_intArrayViaListData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryEnterList("ints"u8, out _, out int count);
         int sum = 0;
@@ -280,7 +281,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadDeepCompound()
     {
-        var reader = new NbtReader(_deepCompoundData, _frames, Networked);
+        var reader = new NbtStreamReader(_deepCompoundData, _frames, Networked);
         reader.EnterRootCompound();
         for (int i = 0; i < 10; i++)
             reader.TryEnterCompound("level"u8);
@@ -295,7 +296,7 @@ public class NbtReaderBenchmarks
     [Benchmark]
     public int ReadEmptyCompoundAndList()
     {
-        var reader = new NbtReader(_emptyCompoundAndListData, _frames, Networked);
+        var reader = new NbtStreamReader(_emptyCompoundAndListData, _frames, Networked);
         reader.EnterRootCompound();
         reader.TryEnterCompound("emptyCompound"u8);
         reader.ExitCompound();
@@ -312,7 +313,7 @@ public class NbtReaderBenchmarks
         int total = 0;
         for (int i = 0; i < 100; i++)
         {
-            var reader = new NbtReader(_simpleCompoundData, _frames, Networked);
+            var reader = new NbtStreamReader(_simpleCompoundData, _frames, Networked);
             reader.EnterRootCompound();
             reader.TryReadInt("int"u8, out int val);
             reader.SkipRemaining();

@@ -3,7 +3,7 @@ using Verstack.Shared.Nbt.Writer;
 namespace Verstack.Shared.Nbt.Tests;
 
 /// <summary>
-/// Тесты <see cref="NbtWriter"/>: эталонные байты, свёренные вручную по wire-формату NBT
+/// Тесты <see cref="NbtStreamWriter"/>: эталонные байты, свёренные вручную по wire-формату NBT
 /// (minecraft.wiki/w/NBT_format). Покрывают networked/disk root, скаляры, вложенные compound,
 /// list скаляров и list контейнеров (безымянные перегрузки).
 ///
@@ -11,7 +11,7 @@ namespace Verstack.Shared.Nbt.Tests;
 /// объявления, а stackalloc-буферы — ref-scoped). Поэтому каждый тест конструирует writer инлайн:
 /// 4 строки boilerplate — плата за GC-free на стеке. Это каноничный паттерн для тестирования ref struct.
 /// </summary>
-public class NbtWriterTests
+public class NbtStreamWriterTests
 {
     // ─────────────────────  Networked vs disk root  ─────────────────────
 
@@ -23,7 +23,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames, networked: true);
+        var w = new NbtStreamWriter(buffer, frames, networked: true);
 
         w.BeginRootCompound();
         w.EndCompound();
@@ -39,7 +39,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames, networked: false);
+        var w = new NbtStreamWriter(buffer, frames, networked: false);
 
         w.BeginRootCompound();
         w.EndCompound();
@@ -57,7 +57,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .WriteInt("count"u8, 42)
@@ -79,7 +79,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .WriteByte("b"u8, 1)          // TAG_Byte
@@ -113,7 +113,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .BeginCompound("nested"u8)
@@ -140,7 +140,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .BeginList("items"u8, NbtTagType.String, 2)
@@ -171,7 +171,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .BeginList("rows"u8, NbtTagType.Compound, 2)
@@ -211,7 +211,7 @@ public class NbtWriterTests
     {
         Span<byte> buffer = stackalloc byte[256];
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var w = new NbtWriter(buffer, frames);
+        var w = new NbtStreamWriter(buffer, frames);
 
         w.BeginRootCompound()
             .WriteString("name"u8, "value"u8)

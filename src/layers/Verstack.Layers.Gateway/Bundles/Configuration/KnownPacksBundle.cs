@@ -73,7 +73,7 @@ internal sealed class KnownPacksBundle : PacketBundle
                             // Отправляем NBT для биома plains
                             registryData.WriteBool(true);
                             
-                            var nbtWriter = new NbtWriter(nbtBuffer, nbtFrames, networked: true);
+                            var nbtWriter = new NbtStreamWriter(nbtBuffer, nbtFrames, networked: true);
                             nbtWriter.BeginRootCompound();
                             nbtWriter.WriteByte("has_precipitation"u8, 1);
                             nbtWriter.WriteFloat("temperature"u8, 0.8f);

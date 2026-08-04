@@ -5,57 +5,57 @@ namespace Verstack.Shared.Nbt.Writer;
 
 public static class NbtWriterJsonExtensions
 {
-    public static void WriteJsonRoot(this ref NbtWriter writer, JsonElement root)
+    public static void WriteJsonRoot(this ref NbtStreamWriter streamWriter, JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object)
             throw new JsonException("Корневой элемент NBT должен быть JSON-объектом (Compound).");
 
-        writer.BeginRootCompound();
-        WriteJsonObjectContents(ref writer, root);
-        writer.EndCompound();
+        streamWriter.BeginRootCompound();
+        WriteJsonObjectContents(ref streamWriter, root);
+        streamWriter.EndCompound();
     }
 
-    private static void WriteJsonObjectContents(ref NbtWriter writer, JsonElement obj)
+    private static void WriteJsonObjectContents(ref NbtStreamWriter streamWriter, JsonElement obj)
     {
         foreach (var property in obj.EnumerateObject())
         {
             byte[] nameUtf8 = Encoding.UTF8.GetBytes(property.Name);
-            WriteJsonValue(ref writer, nameUtf8, property.Value);
+            WriteJsonValue(ref streamWriter, nameUtf8, property.Value);
         }
     }
 
-    private static void WriteJsonValue(ref NbtWriter writer, ReadOnlySpan<byte> nameUtf8, JsonElement value)
+    private static void WriteJsonValue(ref NbtStreamWriter streamWriter, ReadOnlySpan<byte> nameUtf8, JsonElement value)
     {
         switch (value.ValueKind)
         {
             case JsonValueKind.String:
                 byte[] strUtf8 = Encoding.UTF8.GetBytes(value.GetString()!);
-                writer.WriteString(nameUtf8, strUtf8);
+                streamWriter.WriteString(nameUtf8, strUtf8);
                 break;
 
             case JsonValueKind.Number:
                 if (value.TryGetInt32(out int intVal))
-                    writer.WriteInt(nameUtf8, intVal);
+                    streamWriter.WriteInt(nameUtf8, intVal);
                 else if (value.TryGetDouble(out double doubleVal))
-                    writer.WriteDouble(nameUtf8, doubleVal);
+                    streamWriter.WriteDouble(nameUtf8, doubleVal);
                 break;
 
             case JsonValueKind.True:
-                writer.WriteBool(nameUtf8, true);
+                streamWriter.WriteBool(nameUtf8, true);
                 break;
 
             case JsonValueKind.False:
-                writer.WriteBool(nameUtf8, false);
+                streamWriter.WriteBool(nameUtf8, false);
                 break;
 
             case JsonValueKind.Object:
-                writer.BeginCompound(nameUtf8);
-                WriteJsonObjectContents(ref writer, value);
-                writer.EndCompound();
+                streamWriter.BeginCompound(nameUtf8);
+                WriteJsonObjectContents(ref streamWriter, value);
+                streamWriter.EndCompound();
                 break;
 
             case JsonValueKind.Array:
-                WriteJsonArray(ref writer, nameUtf8, value);
+                WriteJsonArray(ref streamWriter, nameUtf8, value);
                 break;
 
             case JsonValueKind.Null:
@@ -66,7 +66,7 @@ public static class NbtWriterJsonExtensions
         }
     }
 
-    private static void WriteJsonArray(ref NbtWriter writer, ReadOnlySpan<byte> nameUtf8, JsonElement array)
+    private static void WriteJsonArray(ref NbtStreamWriter streamWriter, ReadOnlySpan<byte> nameUtf8, JsonElement array)
     {
         int count = 0;
         NbtTagType listType = NbtTagType.End;
@@ -84,47 +84,47 @@ public static class NbtWriterJsonExtensions
         if (count == 0)
         {
             // Пустой массив
-            writer.BeginList(nameUtf8, NbtTagType.Compound, 0);
-            writer.EndList();
+            streamWriter.BeginList(nameUtf8, NbtTagType.Compound, 0);
+            streamWriter.EndList();
             return;
         }
 
-        writer.BeginList(nameUtf8, listType, count);
+        streamWriter.BeginList(nameUtf8, listType, count);
 
         // Второй проход: пишем все элементы
         foreach (var item in array.EnumerateArray())
         {
-            WriteJsonListItem(ref writer, item, listType);
+            WriteJsonListItem(ref streamWriter, item, listType);
         }
 
-        writer.EndList();
+        streamWriter.EndList();
     }
 
-    private static void WriteJsonListItem(ref NbtWriter writer, JsonElement item, NbtTagType expectedType)
+    private static void WriteJsonListItem(ref NbtStreamWriter streamWriter, JsonElement item, NbtTagType expectedType)
     {
         switch (expectedType)
         {
             case NbtTagType.String:
                 byte[] strUtf8 = Encoding.UTF8.GetBytes(item.GetString()!);
-                writer.WriteListItemString(strUtf8);
+                streamWriter.WriteListItemString(strUtf8);
                 break;
 
             case NbtTagType.Int:
-                writer.WriteListItemInt(item.GetInt32());
+                streamWriter.WriteListItemInt(item.GetInt32());
                 break;
 
             case NbtTagType.Double:
-                writer.WriteListItemDouble(item.GetDouble());
+                streamWriter.WriteListItemDouble(item.GetDouble());
                 break;
 
             case NbtTagType.Byte:
-                writer.WriteListItemBool(item.GetBoolean());
+                streamWriter.WriteListItemBool(item.GetBoolean());
                 break;
 
             case NbtTagType.Compound:
-                writer.BeginCompound();
-                WriteJsonObjectContents(ref writer, item);
-                writer.EndCompound();
+                streamWriter.BeginCompound();
+                WriteJsonObjectContents(ref streamWriter, item);
+                streamWriter.EndCompound();
                 break;
         }
     }

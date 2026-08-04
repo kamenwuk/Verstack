@@ -1,9 +1,10 @@
+using Verstack.Shared.Nbt.Reader;
 using Verstack.Shared.Nbt.Writer;
 
 namespace Verstack.Shared.Nbt.Tests;
 
 /// <summary>
-/// Тесты <see cref="NbtReader"/>: кормим эталонными байтами из <see cref="NbtWriterTests"/> (те же hex)
+/// Тесты <see cref="NbtStreamReader"/>: кормим эталонными байтами из <see cref="NbtStreamWriterTests"/> (те же hex)
 /// и проверяем прочитанные значения. Дополнительно — round-trip (writer пишет → reader читает) и
 /// sequental-обход с peek+payload.
 ///
@@ -12,9 +13,9 @@ namespace Verstack.Shared.Nbt.Tests;
 /// читаются в caller'ов <c>Span&lt;char&gt;</c> через декодер. Для ассертов удобно собирать строку через
 /// <c>new string(span[..n])</c> — в тестах аллокация допустима.
 ///
-/// Boilerplate 4 строки на тест — плата за GC-free ref struct (см. <see cref="NbtWriterTests"/>).
+/// Boilerplate 4 строки на тест — плата за GC-free ref struct (см. <see cref="NbtStreamWriterTests"/>).
 /// </summary>
-public class NbtReaderTests
+public class NbtStreamReaderTests
 {
     // ─────────────────────  Networked vs disk root  ─────────────────────
 
@@ -27,7 +28,7 @@ public class NbtReaderTests
     {
         ReadOnlySpan<byte> bytes = ParseHex("0A 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames, networked: true);
+        var r = new NbtStreamReader(bytes, frames, networked: true);
 
         r.EnterRootCompound();
         r.ReadTagName(out NbtTagType type, out ReadOnlySpan<byte> name);
@@ -46,7 +47,7 @@ public class NbtReaderTests
     {
         ReadOnlySpan<byte> bytes = ParseHex("0A 00 00 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames, networked: false);
+        var r = new NbtStreamReader(bytes, frames, networked: false);
 
         r.EnterRootCompound();
         r.ReadTagName(out NbtTagType type, out _);
@@ -68,7 +69,7 @@ public class NbtReaderTests
     {
         ReadOnlySpan<byte> bytes = ParseHex("0A 03 00 05 63 6F 75 6E 74 00 00 00 2A 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         r.ReadTagName(out NbtTagType type, out ReadOnlySpan<byte> name);
@@ -102,7 +103,7 @@ public class NbtReaderTests
             + " 01 00 01 42 01"                                     // Bool("B", true)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
 
@@ -133,7 +134,7 @@ public class NbtReaderTests
     {
         ReadOnlySpan<byte> bytes = ParseHex("0A 0A 00 06 6E 65 73 74 65 64 01 00 04 66 6C 61 67 01 00 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         r.ReadTagName(out var t, out var n);
@@ -167,7 +168,7 @@ public class NbtReaderTests
     {
         ReadOnlySpan<byte> bytes = ParseHex("0A 09 00 05 69 74 65 6D 73 08 00 00 00 02 00 01 61 00 01 62 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         r.ReadTagName(out var t, out var n);
@@ -205,7 +206,7 @@ public class NbtReaderTests
             + " 03 00 02 69 64 00 00 00 02 00"     // Int("id",2) + End
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         r.ReadTagName(out var t, out _);
@@ -252,7 +253,7 @@ public class NbtReaderTests
             + " 08 00 01 7A 00 02 68 69"         // String("z","hi")
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
 
@@ -291,7 +292,7 @@ public class NbtReaderTests
             + " 03 00 04 6B 65 65 70 00 00 00 07"// Int("keep", 7)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
 
@@ -330,7 +331,7 @@ public class NbtReaderTests
             + " 00 01 62"                                                          //   "b"
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
 
@@ -382,7 +383,7 @@ public class NbtReaderTests
             + " 08 00 01 7A 00 02 68 69"         // String("z","hi")
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         Assert.True(r.TryReadInt("y"u8, out int value));
@@ -405,7 +406,7 @@ public class NbtReaderTests
             + " 01 00 01 78 01"                  // Byte("x", 1)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         Assert.False(r.TryReadInt("missing"u8, out int value));
@@ -433,7 +434,7 @@ public class NbtReaderTests
             + " 01 00 07 65 6E 61 62 6C 65 64 01"                // Bool("enabled", true)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         Span<char> nameBuf = stackalloc char[32];
@@ -461,7 +462,7 @@ public class NbtReaderTests
             + " 08 00 01 79 00 02 68 69"          // String("y","hi")
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
 
@@ -487,7 +488,7 @@ public class NbtReaderTests
             + " 00"                                               //   end inner
             + " 00");                                             //   end root
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         Assert.True(r.TryReadInt("outer"u8, out int outer));        Assert.Equal(7, outer);
@@ -514,7 +515,7 @@ public class NbtReaderTests
             + " 00 01 62"                                 //   "b"
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         Assert.True(r.TryEnterList("tags"u8, out var elemType, out int count));
@@ -541,7 +542,7 @@ public class NbtReaderTests
             + " 01"                                         //   Byte(1)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         r.TryEnterList("items"u8, out _, out _);
@@ -569,7 +570,7 @@ public class NbtReaderTests
             + " 03 00 05 63 61 66 C3 A9 00 00 00 63"     // Int("café", 99)
             + " 00");
         Span<NbtFrame> frames = stackalloc NbtFrame[8];
-        var r = new NbtReader(bytes, frames);
+        var r = new NbtStreamReader(bytes, frames);
 
         r.EnterRootCompound();
         // "café"u8 — это UTF-8 байты [63 61 66 C3 A9], что == mUTF-8 для café.
@@ -591,13 +592,13 @@ public class NbtReaderTests
         // Пишем: root { ByteArray("data", [1,2,3]) }
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
-        var w = new NbtWriter(written, wframes);
+        var w = new NbtStreamWriter(written, wframes);
         w.BeginRootCompound()
             .WriteByteArray("data"u8, [1, 2, 3])
         .EndCompound();
 
         // Читаем.
-        var r = new NbtReader(w.Finish(), wframes);   // переиспользуем frames-буфер
+        var r = new NbtStreamReader(w.Finish(), wframes);   // переиспользуем frames-буфер
         r.EnterRootCompound();
         Assert.True(r.TryReadByteArray("data"u8, out ReadOnlySpan<byte> value));
         Assert.Equal(new byte[] { 1, 2, 3 }, value.ToArray());
@@ -615,12 +616,12 @@ public class NbtReaderTests
         // Пишем: root { IntArray("ids", [1000001, 2000002, 3000003]) } — значения > byte, чтобы поймать endian-баг.
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
-        var w = new NbtWriter(written, wframes);
+        var w = new NbtStreamWriter(written, wframes);
         w.BeginRootCompound()
             .WriteIntArray("ids"u8, [1000001, 2000002, 3000003])
         .EndCompound();
 
-        var r = new NbtReader(w.Finish(), wframes);
+        var r = new NbtStreamReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Span<int> dest = stackalloc int[8];   // больше, чем в потоке — лишнее не трогается
         Assert.True(r.TryReadIntArray("ids"u8, dest, out int count));
@@ -641,12 +642,12 @@ public class NbtReaderTests
     {
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
-        var w = new NbtWriter(written, wframes);
+        var w = new NbtStreamWriter(written, wframes);
         w.BeginRootCompound()
             .WriteLongArray("positions"u8, [0x0102030405060708L, -5L])
         .EndCompound();
 
-        var r = new NbtReader(w.Finish(), wframes);
+        var r = new NbtStreamReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Span<long> dest = stackalloc long[4];
         Assert.True(r.TryReadLongArray("positions"u8, dest, out int count));
@@ -667,7 +668,7 @@ public class NbtReaderTests
         // Пишем: root { List("rows", ByteArray, 2, [[10],[20,30]]) }
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
-        var w = new NbtWriter(written, wframes);
+        var w = new NbtStreamWriter(written, wframes);
         w.BeginRootCompound()
             .BeginList("rows"u8, NbtTagType.ByteArray, 2)
             .WriteByteArray([10])
@@ -675,7 +676,7 @@ public class NbtReaderTests
             .EndList()
         .EndCompound();
 
-        var r = new NbtReader(w.Finish(), wframes);
+        var r = new NbtStreamReader(w.Finish(), wframes);
         r.EnterRootCompound();
         r.ReadTagName(out var t, out _);
         Assert.Equal(NbtTagType.List, t);
@@ -701,13 +702,13 @@ public class NbtReaderTests
         // { Int("x", 1) }
         Span<byte> written = stackalloc byte[64];
         Span<NbtFrame> wframes = stackalloc NbtFrame[8];
-        var w = new NbtWriter(written, wframes);
+        var w = new NbtStreamWriter(written, wframes);
 
         w.BeginRootCompound()
             .WriteInt("x"u8, 1)
         .EndCompound();
 
-        var r = new NbtReader(w.Finish(), wframes);
+        var r = new NbtStreamReader(w.Finish(), wframes);
         r.EnterRootCompound();
         Assert.False(r.TryReadByteArray("missing"u8, out ReadOnlySpan<byte> value));
         Assert.True(value.IsEmpty);
