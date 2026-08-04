@@ -65,8 +65,9 @@ internal sealed class HandoffApprovalSystem : IProtoInitSystem, IProtoRunSystem
 
             if (status == PipelineSessionStatus.Kick)
             {
-                // Нарушение протокола. Рвем соединение. 
-                // Сеть сообщит роутеру, вешается NetworkDisconnectedState, сущность удалится.
+                // Нарушение протокола — рвём соединение. Сеть сообщит роутеру,
+                // BridgeDisconnectSystem повесит BridgeClientDisconnected,
+                // BridgeCleanupSystem удалит сущность.
                 channel.Disconnect();
             }
         }

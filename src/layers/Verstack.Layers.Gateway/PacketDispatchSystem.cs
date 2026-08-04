@@ -44,16 +44,17 @@ internal sealed class PacketDispatchSystem : IProtoInitSystem, IProtoRunSystem
 
             if (status == PipelineSessionStatus.Transfer)
             {
-                // Пайплайн завершил конфигурацию. 
-                // Мы НИЧЕГО не делаем. GatewayNetworkHandoffPolicy в NetworkCleanupSystem
-                // увидит, что FlowState дошел до конца, и сама перенесет игрока в Realm.
+                // Пайплайн завершил конфигурацию. Слой ничего не делает —
+                // GatewayHandoffPolicy в BridgeTransferSystem на следующем тике
+                // увидит, что FlowState дошёл до конца, и перенесёт игрока в Realm.
                 continue;
             }
 
             if (status == PipelineSessionStatus.Kick)
             {
-                // Нарушение протокола. Рвем соединение. 
-                // Сеть сообщит роутеру, вешается NetworkDisconnectedState, сущность удалится.
+                // Нарушение протокола — рвём соединение. Сеть сообщит роутеру,
+                // BridgeDisconnectSystem повесит BridgeClientDisconnected,
+                // BridgeCleanupSystem удалит сущность.
                 channel.Disconnect();
             }
         }

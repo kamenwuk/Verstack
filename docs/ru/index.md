@@ -1,20 +1,37 @@
 # Документация Verstack
 
-Точка входа в документацию Verstack. Каждый документ посвящён одной теме.
-
-## Содержание
-
- | Документ                          | Описание                                                                                              |
- |-----------------------------------|-------------------------------------------------------------------------------------------------------|
- | [Архитектура](architecture.md)    | Слои, зоны ответственности, граф зависимостей, ECS-миры и проектные решения.                          |
- | [Network](network/index.md)       | Пассивный насос байт: `TcpNetworkService`, `NetworkChannel`, фрейминг, конвейер бандлов.              |
- | [Bridge](bridge/index.md)         | Мост: async-сеть ↔ sync-ECS, конечный автомат сущности, передача владения каналом между слоями.       |
- | [Gateway](gateway/index.md)       | Входной слой: Handshake, Status, Login, Configuration. Бандлы, конвейер, гостевой скрининг, handoff.  |
- | [Realm](realm/index.md)           | Фаза Play: вход в мир, отправка чанков, маршрутизатор входящих play-пакетов.                          |
- | [Engine.World](engine-world/index.md) | Модель чанков, сериализация в wire-формат протокола 26.2, flat-генератор.                         |
- | [Global](global/index.md)         | Глобальный мир: MOTD, кэш ServerInfo, каталог реестров 26.2, DTO для Bridge, ServerTime.              |
- | [NBT](nbt/index.md)               | NBT writer+reader: `NbtWriter`/`NbtReader` (ref struct, `Span<byte>`), modified UTF-8, networked-root.|
+Входная точка в документацию Verstack. Каждый документ описывает одну тему; подробности — по ссылкам, без дублирования.
 
 ## Языки
 
 - [English](../en/index.md)
+
+## Основное
+
+| Документ | Описание |
+|----------|----------|
+| [Архитектура](architecture.md) | Карта проектов и направление зависимостей |
+| [Кодовые конвенции](conventions.md) | GC-free, ref struct, nullable, исключения, naming |
+
+## Engine
+
+| Документ | Описание |
+|----------|----------|
+| [Engine](engine/index.md) | Движок: Ecs, Lifecycle, Network — без знания о Minecraft-фазах |
+| [Bridge](engine/bridge.md) | Развязка Network↔ECS: маршрутизация каналов, состояния игрока |
+| [Network](engine/network.md) | Фрейминг, компрессия, PacketReader/Writer, NetworkChannel |
+
+## Layers
+
+| Документ | Описание |
+|----------|----------|
+| [Layers](layers/index.md) | Фазовые слои на ECS: точка входа слоя, Bundle-конвейер |
+| [Global](layers/global.md) | GLOBAL-мир: ServerInfo, SyncedRegistryCatalog, владелец Assets |
+| [Gateway](layers/gateway.md) | GATEWAY-мир: Status, Login, Configuration |
+| [Realm](layers/realm.md) | REALM-мир: фаза Play (Join, Movement) |
+
+## Shared
+
+| Документ | Описание |
+|----------|----------|
+| [Shared](shared/index.md) | Assets (DataCompiler→binary→App), Nbt, Debug |

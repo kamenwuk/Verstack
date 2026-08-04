@@ -26,7 +26,6 @@ public sealed class GatewayLayer : ServerFeatureLayer
     protected override void GetVisibleScopes(ICollection<string> scopes)
     {
         scopes.Add(ServerWorldScopes.GLOBAL);
-        scopes.Add(ServerWorldScopes.REALM);
     }
 
     protected override string GetNextScope() => ServerWorldScopes.REALM;

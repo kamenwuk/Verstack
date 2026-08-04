@@ -54,7 +54,7 @@ public sealed class DispatchPacketPipeline
     /// <param name="channel">Сетевой канал, предоставляющий очередь входящих пакетов.</param>
     /// <returns>
     /// <see cref="PipelineSessionStatus.Ok"/> — если все пакеты успешно обработаны или очередь была пуста;<br/>
-    /// <see cref="PipelineSessionStatus.Kick"/> — если один из обработчиков отклонил пакет, signaled о необходимости разрыва соединения.
+    /// <see cref="PipelineSessionStatus.Kick"/> — если один из обработчиков отклонил пакет, сигнализируя о необходимости разрыва соединения.
     /// </returns>
     public PipelineSessionStatus ProcessSession(ProtoEntity entity, NetworkChannel channel)
     {

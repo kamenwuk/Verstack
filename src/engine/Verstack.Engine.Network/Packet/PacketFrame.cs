@@ -83,7 +83,7 @@ public static class PacketFrame
 #if DEBUG
         if (decompressor == null)
             throw new InvalidOperationException(
-                $"[{nameof(PacketFrame)}] Сжатый кадр (DataLength={dataLength}), но декомпрессор не задан.");
+                $"Сжатый кадр (DataLength={dataLength}), но декомпрессор не задан.");
 #endif
 
         var compressed = buffer.Slice(bodyStart).Slice(payloadStart, payloadLength);

@@ -58,7 +58,7 @@ public ref struct PacketOutbound : IDisposable
     {
 #if DEBUG
         if (_isWriting)
-            throw new InvalidOperationException("Begin() called without Committing the previous packet!");
+            throw new InvalidOperationException("Begin() вызван до Commit() предыдущего пакета.");
         _isWriting = true;
 #endif
         _payloadArray ??= ArrayPool<byte>.Shared.Rent(INITIAL_PAYLOAD_SIZE);

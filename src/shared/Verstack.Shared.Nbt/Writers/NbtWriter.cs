@@ -43,7 +43,7 @@ public ref struct NbtWriter
         if (_depth != 0)
         {
             throw new InvalidOperationException(
-                $"[{nameof(NbtWriter)}] NBT не закрыт корректно! Осталось незакрытых контейнеров: {_depth}. " +
+                $"NBT не закрыт корректно! Осталось незакрытых контейнеров: {_depth}. " +
                 $"Убедитесь, что для каждого BeginCompound/BeginList вызван EndCompound/EndList.");
         }
 
@@ -66,10 +66,10 @@ public ref struct NbtWriter
         ref NbtFrame frame = ref _frames[_depth - 1];
         if (frame.Container != NbtTagType.List)
             throw new InvalidOperationException(
-                $"[{nameof(NbtWriter)}] EndList вызван вне List-контекста (текущий контейнер: {frame.Container}).");
+                $"EndList вызван вне List-контекста (текущий контейнер: {frame.Container}).");
         if (frame.ListRemaining != 0)
             throw new InvalidOperationException(
-                $"[{nameof(NbtWriter)}] List закрыт с остатком: ожидалось ещё {frame.ListRemaining} элемент(ов).");
+                $"List закрыт с остатком: ожидалось ещё {frame.ListRemaining} элемент(ов).");
 #endif
         PopFrame();
     }
@@ -80,14 +80,14 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (_depth == 0)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Скаляр без имени вызван вне List-контекста (стек пуст).");
+            throw new InvalidOperationException($"Скаляр без имени вызван вне List-контекста (стек пуст).");
         ref NbtFrame frame = ref _frames[_depth - 1];
         if (frame.Container != NbtTagType.List)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Скаляр без имени вызван в Compound-контексте; используйте перегрузку с name.");
+            throw new InvalidOperationException($"Скаляр без имени вызван в Compound-контексте; используйте перегрузку с name.");
         if (frame.ListRemaining <= 0)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] List переполнен: заявлено элементов меньше, чем записано.");
+            throw new InvalidOperationException($"List переполнен: заявлено элементов меньше, чем записано.");
         if (frame.ExpectedListItem != type)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Несовпадение типа List-элемента: ожидался {frame.ExpectedListItem}, получен {type}.");
+            throw new InvalidOperationException($"Несовпадение типа List-элемента: ожидался {frame.ExpectedListItem}, получен {type}.");
         frame.ListRemaining--;
 #endif
     }
@@ -107,7 +107,7 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (count < 0)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Отрицательная длина List: {count}.");
+            throw new InvalidOperationException($"Отрицательная длина List: {count}.");
 #endif
         WriteTagType(elementType);
         WriteIntRaw(count);
@@ -118,7 +118,7 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (nameUtf8.Length > MAX_STRING_LENGTH)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Имя тега слишком длинное: {nameUtf8.Length} байт (max {MAX_STRING_LENGTH}).");
+            throw new InvalidOperationException($"Имя тега слишком длинное: {nameUtf8.Length} байт (max {MAX_STRING_LENGTH}).");
 #endif
         WriteShortRaw((short)nameUtf8.Length);
         WriteSpan(nameUtf8);
@@ -129,7 +129,7 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (valueUtf8.Length > MAX_STRING_LENGTH)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] TAG_String слишком длинная: {valueUtf8.Length} байт (max {MAX_STRING_LENGTH}).");
+            throw new InvalidOperationException($"TAG_String слишком длинная: {valueUtf8.Length} байт (max {MAX_STRING_LENGTH}).");
 #endif
         WriteShortRaw((short)valueUtf8.Length);
         WriteSpan(valueUtf8);
@@ -168,7 +168,7 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (_depth >= _frames.Length)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Превышена глубина стека ({_frames.Length}). Увеличьте frames в конструкторе.");
+            throw new InvalidOperationException($"Превышена глубина стека ({_frames.Length}). Увеличьте frames в конструкторе.");
 #endif
         _frames[_depth++] = new NbtFrame { Container = container, ExpectedListItem = listItem, ListRemaining = remaining };
     }
@@ -178,7 +178,7 @@ public ref struct NbtWriter
     {
 #if DEBUG
         if (_depth == 0)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] PopFrame на пустом стеке (лишний End* вызов).");
+            throw new InvalidOperationException($"PopFrame на пустом стеке (лишний End* вызов).");
 #endif
         _depth--;
     }
@@ -188,10 +188,10 @@ public ref struct NbtWriter
     private void ValidateCompoundContext(NbtTagType type)
     {
         if (_depth == 0)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Именованный тег {type} записан до BeginRootCompound/BeginCompound.");
+            throw new InvalidOperationException($"Именованный тег {type} записан до BeginRootCompound/BeginCompound.");
         ref NbtFrame frame = ref _frames[_depth - 1];
         if (frame.Container != NbtTagType.Compound)
-            throw new InvalidOperationException($"[{nameof(NbtWriter)}] Именованный тег {type} записан в List-контексте; используйте безымянную перегрузку.");
+            throw new InvalidOperationException($"Именованный тег {type} записан в List-контексте; используйте безымянную перегрузку.");
     }
 #endif
 }

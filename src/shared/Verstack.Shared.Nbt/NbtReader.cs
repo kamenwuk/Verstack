@@ -463,7 +463,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal NbtTagType ReadTagType()
     {
         if ((uint)_offset >= (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении type-байта.");
+            throw new EndOfStreamException($"Конец буфера при чтении type-байта.");
         return (NbtTagType)_buffer[_offset++];
     }
 
@@ -471,7 +471,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal byte ReadByteRaw()
     {
         if ((uint)_offset >= (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении byte.");
+            throw new EndOfStreamException($"Конец буфера при чтении byte.");
         return _buffer[_offset++];
     }
 
@@ -479,7 +479,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal short ReadShortRaw()
     {
         if ((uint)(_offset + 2) > (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении short.");
+            throw new EndOfStreamException($"Конец буфера при чтении short.");
         short v = BinaryPrimitives.ReadInt16BigEndian(_buffer[_offset..]);
         _offset += 2;
         return v;
@@ -489,7 +489,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal int ReadIntRaw()
     {
         if ((uint)(_offset + 4) > (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении int.");
+            throw new EndOfStreamException($"Конец буфера при чтении int.");
         int v = BinaryPrimitives.ReadInt32BigEndian(_buffer[_offset..]);
         _offset += 4;
         return v;
@@ -499,7 +499,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal long ReadLongRaw()
     {
         if ((uint)(_offset + 8) > (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении long.");
+            throw new EndOfStreamException($"Конец буфера при чтении long.");
         long v = BinaryPrimitives.ReadInt64BigEndian(_buffer[_offset..]);
         _offset += 8;
         return v;
@@ -510,7 +510,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal ReadOnlySpan<byte> ReadSpan(int count)
     {
         if ((uint)(_offset + count) > (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при чтении span ({count} байт).");
+            throw new EndOfStreamException($"Конец буфера при чтении span ({count} байт).");
         ReadOnlySpan<byte> s = _buffer[_offset..(_offset + count)];
         _offset += count;
         return s;
@@ -521,7 +521,7 @@ public ref struct NbtReader(ReadOnlySpan<byte> buffer, Span<NbtFrame> frames, bo
     internal void Advance(int count)
     {
         if ((uint)(_offset + count) > (uint)_buffer.Length)
-            throw new EndOfStreamException($"[{nameof(NbtReader)}] Конец буфера при advance ({count} байт).");
+            throw new EndOfStreamException($"Конец буфера при advance ({count} байт).");
         _offset += count;
     }
 

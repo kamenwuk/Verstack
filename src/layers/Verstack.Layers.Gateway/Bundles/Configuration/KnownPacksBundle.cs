@@ -30,7 +30,7 @@ internal sealed class KnownPacksBundle : PacketBundle
                 byte[][][] entryIds = SyncedRegistryCatalog.MandatoryEntries;
 
                 if (syncedIds.Length != entryIds.Length)
-                    throw new InvalidOperationException("Arrays length mismatch");
+                    throw new InvalidOperationException("Длины массивов идентификаторов реестров и обязательных записей не совпадают.");
 
                 // Временные буферы для NBT
                 Span<NbtFrame> nbtFrames = stackalloc NbtFrame[32];

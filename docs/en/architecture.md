@@ -1,148 +1,97 @@
 # Architecture
 
-Map of the Verstack codebase: which projects exist, what each owns, and which way dependencies point. Implementation details of any layer live in their deep-dive pages.
+Map of Verstack projects and dependency direction. Implementation details live in deep-dives by group:
+[engine](engine/index.md), [layers](layers/index.md), [shared](shared/index.md). Code conventions are in
+[conventions.md](conventions.md).
 
-## Solution layout
+## Project groups
 
-```
-Verstack.slnx                          ← .NET 10 XML solution format
-Directory.Build.props                  ← shared settings for all projects
-src/
-├── Verstack.App/                      ← Program.cs, entry point. AssemblyName=Verstack
-├── Verstack.Bootstrap/                ← composition: ServerComposer + EntryPoint (main tick loop)
-├── Verstack.Core/                     ← base abstractions: VerstackFeature, WorldScopes, ServerTime
-├── Verstack.Debug/                    ← Logger (LogKey + LogLocale, i18n dictionary)
-├── Verstack.ECS/                      ← vendored Leopotam.EcsProto + QoL. 0 NuGet
-├── Verstack.NBT/                      ← NBT writer+reader: NbtWriter/NbtReader (ref struct), ModifiedUtf8, networked root
-├── Verstack.Network/                  ← TCP/sockets + framing. Passive byte pump
-├── Verstack.Layer.Global/             ← GLOBAL world: MOTD, ServerInfo, constants
-├── Verstack.Layer.Gateway/            ← GATEWAY world: Handshake, Status, Login, Configuration
-└── Verstack.Layer.Realm/              ← REALM world: Play phase (planned, empty for now)
-tools/
-└── Verstack.Probe/                    ← load-testing N-client simulator
-```
+Sources (`src/`) are split into four groups by role. The solution is `Verstack.slnx` (.NET 10 XML format).
 
-## How dependencies run
+**engine/** — the engine. Knows nothing about Minecraft phases: sockets, framing, ECS, server composition, tick loop.
 
-```
-                    App
-                     │
-                     ▼
-                  Bootstrap
-                     │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-   Layer.Realm   Network      Layer.Global
-        │            │            │
-        ▼            ▼            ▼
-   Layer.Gateway  Verstack.ECS  Verstack.Core
-        │            │            │
-        ▼            ▼            ▼
-   Layer.Global  (BCL only)    Verstack.Debug
-        │                       (BCL only)
-        ▼
-   Layer.Global → Core → Debug
-```
+| Project | Role |
+|---------|------|
+| `Verstack.Engine.Ecs` | Vendored `Leopotam.EcsProto` + QoL. 0 NuGet, BCL only |
+| `Verstack.Engine.Lifecycle` | Server composition: `ServerFeatureLayer`, `ServerComposer`, `EntryPoint` (tick loop), `ServerTime`, `ServerWorldScopes`, `ServerConstants` |
+| `Verstack.Engine.Network` | TCP/sockets, framing, compression. Passive byte pump |
+| `Verstack.Engine.Bridge` | Network↔ECS decoupling: channel routing between layers, player state machine |
 
-Dependencies are linear and point downward, toward the foundation. `App` is the composition root and the only executable assembly. `Bootstrap` assembles three ECS worlds out of Features and services and runs the main tick. `Layer.Realm → Layer.Gateway → Layer.Global → Core` is the layer pyramid: an upper layer knows the lower ones, never the reverse.
+**layers/** — Minecraft phase layers on ECS. Each sees only Global; Gateway↔Realm coupling goes through Bridge.
 
-`Verstack.ECS` and `Verstack.Debug` are leaves: `ECS` depends only on BCL, `Debug` too. `Verstack.NBT` is also a leaf, depending only on BCL. `Verstack.Network` depends on `ECS` (the `RawPacket`/`PacketBundle` types use `ProtoEntity`) and `Debug` (logging).
+| Project | Role |
+|--------|------|
+| `Verstack.Layers.Global` | GLOBAL world: `ServerInfo`, `SyncedRegistryCatalog`, owner of Assets. Visible to all, itself knows nobody |
+| `Verstack.Layers.Gateway` | GATEWAY world: Status, Login, Configuration. Entry layer |
+| `Verstack.Layers.Realm` | REALM world: Play phase (Join, Movement) |
 
-| Layer             | May reference                                        | May NOT reference                           |
-|-------------------|------------------------------------------------------|---------------------------------------------|
-| `App`             | Bootstrap, ECS, Network                              | — (composition root)                        |
-| `Bootstrap`       | Debug, ECS, NBT, Network, Core, Layer.Global/Gateway/Realm | — (assembly point)                          |
-| `Layer.Realm`     | ECS, Core, Layer.Gateway                             | Network (directly), Layer.Global (transitively via Gateway) |
-| `Layer.Gateway`   | ECS, Core, Layer.Global, Network                     | Layer.Realm                                 |
-| `Layer.Global`    | ECS, Core                                            | Network, Layer.Gateway, Layer.Realm         |
-| `Network`         | Debug, ECS                                           | layers, Core, Minecraft phases              |
-| `Core`            | Debug, ECS                                           | layers, Network                             |
-| `ECS` / `Debug` / `NBT` | BCL only                                       | anything application-level                  |
+**shared/** — reusable subsystems without phase logic. Do not depend on the engine or layers.
 
-- **Layers never touch sockets directly.** The only path bytes take to the network is through a `NetworkChannel`, which a layer receives from `TcpNetworkService`. A bundle describes outgoing packets via `PacketOutbound` (a `ref struct` over heap buffers); framing and compression are the transport's concern, not the bundle's. Network knows nothing about Minecraft phases.
-- **ECS is the foundation under the layers.** Vendored `Leopotam.EcsProto` (+QoL) lives in `Verstack.ECS`; every layer and Network depend on it. It is not thread-safe — synchronization is done by ECS systems (see the network decoupling below).
+| Project | Role |
+|--------|------|
+| `Verstack.Shared.Debug` | `Logger` (`LogKey` + `LogLocale`, i18n dictionary) |
+| `Verstack.Shared.Nbt` | NBT reader/writer (`ref struct`, modified UTF-8, networked-root) |
+| `Verstack.Shared.Assets` | Loader for compiled binary assets (`AssetCatalog`, cache buffers) |
 
-## ECS worlds and their visibility
+**tools/** — data build utilities, not part of runtime.
 
-Three isolated ECS worlds, one per logical scope. Names are constants in `WorldScopes`:
+| Project | Role |
+|--------|------|
+| `Verstack.Tools.DataCompiler` | Compiler of vanilla JSON → binary `.registry`/`.tags`/`.nbt` into `App/assets/` |
 
-| Scope (`WorldScopes.*`) | Role                                                       | Sees other worlds            |
-|------------------------|------------------------------------------------------------|------------------------------|
-| `GLOBAL`               | Server-wide data: MOTD, ServerInfo, time                   | — (visible to everyone else) |
-| `GATEWAY`              | Entry: Handshake, Status, Login, Configuration             | `GLOBAL`                     |
-| `REALM`                | Game world: Play phase (planned)                           | `GLOBAL`, `GATEWAY`          |
+Tests and benchmarks live next to the projects in `!tests/` and `!benchmark/` (the `!` prefix keeps them at the bottom of
+the IDE list).
 
-Worlds are assembled in `ServerComposer`: each Feature (`GlobalFeature`, `GatewayFeature`, `RealmFeature`) registers its aspects (`ProtoAspectInject` stores) and systems. Services (`TcpNetworkService`, `ServerTime`) are added via `AddService` and injected with `[DI]` into every world. `AutoInjectModule(true)` enables injection into services too.
+## Dependency graph
 
-## The main tick
+The arrow `A → B` means "A references B".
 
-`EntryPoint.RunMainLoop` runs a fixed 20 TPS loop (`ServerConstants.TICK_INTERVAL = 1/20`):
+```text
+Verstack.App
+  ├─→ Verstack.Engine.Lifecycle
+  ├─→ Verstack.Layers.Global
+  ├─→ Verstack.Layers.Gateway
+  ├─→ Verstack.Layers.Realm
+  └─→ Verstack.Shared.Assets
 
-```
-while (_isRunning):
-    try:
-        globalSystems.Run()       # always: MOTD, time, metrics
-        gatewaySystems.Run()      # can be paused (DDoS backpressure)
-        # realmSystems.Run()      # always: Play phase, players don't notice the attack
-    catch Exception:              # a tick must not crash the server — log and carry on
-        Logger.Error(...)
+Verstack.Engine.Lifecycle ─→ Verstack.Engine.Bridge
+                           └─→ Verstack.Engine.Network
+Verstack.Engine.Bridge     ─→ Verstack.Engine.Network
+Verstack.Engine.Network    ─→ Verstack.Engine.Ecs
+Verstack.Engine.Ecs        ─→  (nothing, BCL only)
 
-    serverTime.Update()
-    sleep until next tick (with instant wakeup on the stop signal)
+Verstack.Layers.Global  ─→ Verstack.Engine.Lifecycle
+Verstack.Layers.Gateway ─→ Verstack.Engine.{Bridge, Ecs, Lifecycle, Network}
+                         └─→ Verstack.Shared.{Assets, Nbt}
+                         └─→ Verstack.Layers.Global
+Verstack.Layers.Realm   ─→ Verstack.Engine.Ecs
+                         └─→ Verstack.Layers.Global
+
+Verstack.Shared.{Debug, Nbt, Assets} ─→  (nothing, BCL only)
 ```
 
-The key idea of backpressure: under a DDoS attack on Gateway (`gatewaySystems.Run()` is skipped), the sockets in `TcpNetworkService` keep accepting packets and queueing them in the per-channel `ConcurrentQueue<RawPacket>`. When the pause lifts, the packets are drained. Realm keeps ticking the whole time, so in-game players don't notice the attack. EcsProto is not thread-safe, so the accept thread in `TcpNetworkService` **never touches** the world — it only pushes a `RawPacket` into a queue; the sole writer of the world is an ECS system in the main tick.
+All engine projects depend on `Verstack.Shared.Debug` (logging). `Shared.*` are leaves of the graph, depending on nobody.
 
-## The layers
+Layers do not uniformly repeat the set of engine dependencies: each takes exactly what it needs. Global — only Lifecycle
+(it doesn't need Network and Bridge, it doesn't work with sockets). Realm — Engine.Ecs + Global (phase logic over ECS;
+network intake is delegated to Bridge, which Realm has no direct access to).
 
-### Verstack.Network
+## Worlds and visibility
 
-Passive byte pump. `TcpNetworkService` owns the listening socket and the accept loop: for each connection it creates a `NetworkChannel` (Socket + PipeReader/Writer + `ConcurrentQueue<RawPacket>`), pushes it into `PendingConnections`, and starts a background read. The read splits the byte stream into `RawPacket`s (packet id + payload) via `PacketFrame.TryRead` and enqueues them — with no Minecraft semantics whatsoever. `DataTypes/` holds encoding primitives (VarInt, Numeric, Utf8String, Uuid, PrefixedArray, etc.). `Packet/` holds framing and the pipeline skeleton: `PacketFrame`/`PacketFrameResult` (compression-aware framing), `PacketOutbound`/`SpanWriter` (GC-free outbound for bundles), `RawPacket`, `PacketBundle`, `PacketPipeline`, `PacketFlowState`. `Compression/` holds the `IPacketCompressor`/`IPacketDecompressor` abstractions and the default zlib implementations — framing switches to compressed format after a `Set Compression` per channel.
+Three ECS worlds by scope — `GLOBAL`, `GATEWAY`, `REALM` (constants in `ServerWorldScopes`). Visibility is **flat**:
 
-→ [Network](network/index.md)
+- `GLOBAL` is visible to all layers, but Global itself knows nobody.
+- `GATEWAY` and `REALM` **do not see each other** — neither in ECS nor in project dependencies.
 
-### Verstack.Layer.Global
+The connection between Gateway and Realm goes **only through Bridge** — it transfers ownership of the player's channel
+from layer to layer. How Bridge works (router, states, system order on the tick) is in [engine/bridge.md](engine/bridge.md).
+How a layer declares its scope, next scope, and visibility is in [layers/index.md](layers/index.md).
 
-The GLOBAL world. `ServerInfoCacheStore` is an aspect with a dirty flag: MOTD/version/slots live as fields, and the status JSON is rebuilt only on change and cached as a `byte[]`. On a server-list ping — zero allocations, a ready array is returned. `UpdateServerInfoSystem` checks the dirty flag and rebuilds the cache once a second. `ServerTime` provides DeltaTime/TotalTime via `Stopwatch.GetTimestamp`, with no drift.
+## Tick loop
 
-→ [Global](global/index.md)
+`EntryPoint.Start` creates a `ServerComposer`, builds an array of `ProtoSystems` from `ServerFeatureLayer`s (one per
+layer), calls `Init()` on each, and starts the main loop. Each tick: `layer.Run()` on all layers in turn, then
+`ServerTime.Update()`, then sleep until the end of the tick (20 TPS, 50 ms). Stop — on `Ctrl+C` or console close.
 
-### Verstack.Layer.Gateway
-
-The GATEWAY world, the entry layer. `GuestScreeningSystem` takes new channels from `PendingConnections`, parses Handshake, and routes them: Status (ping/MOTD is served right here, no ECS entity) or Login (an ECS entity is created with `NetworkSession` + `PacketFlowState`). `PacketDispatchSystem` runs packets of logged-in sessions through `GatewayPacketPipeline` — a conveyor of `PacketBundle`s, where each bundle is a phase (Login, Configuration). `GatewayCacheStore` is an aspect: `Sessions`/`FlowStates` pools plus entity↔channel side-dictionaries.
-
-→ [Gateway](gateway/index.md)
-
-### Verstack.Layer.Realm
-
-The REALM world, the Play phase. Reserved; `RealmFeature` is empty for now: `Init` with no systems, `GetCacheStores()` → `[]`. It will run at 20 TPS regardless of the load on Gateway.
-
-### Verstack.Bootstrap
-
-Composition. `ServerComposer` takes three Features, builds three `ProtoWorld`s out of their aspects (via `ProtoModules` + `AutoInjectModule`), registers services, and wires worlds by visibility. `EntryPoint` is the lifecycle: `Start(port)` initializes services and worlds, starts the TCP listener and the main tick; `Stop()` wakes the tick via a `CancellationToken`, stops the network, and destroys the worlds.
-
-### Verstack.NBT
-
-NBT writer + reader (Named Binary Tag): `NbtWriter` (`ref struct`, GC-free writes straight into `Span<byte>` through an `NbtFrame` stack) and `NbtReader` (its mirror, sequental + lookup), `ModifiedUtf8` (Java modified UTF-8 in both directions), networked root by default. Symmetric writer/reader over a single `NbtFrame` stack. The DOM is deferred. A BCL leaf, 0 dependencies.
-
-→ [NBT](nbt/index.md)
-
-### Verstack.Core / Debug / ECS
-
-`Core` — base abstractions: `VerstackFeature` (the Feature contract), `WorldScopes` (world names), `ServerTime`. `Debug` — `Logger` with i18n via `LogKey` + `LogLocale`. `ECS` — the vendored `Leopotam.EcsProto` (+QoL), the foundation under the layers.
-
-`Verstack.ECS` is the only third-party code in the project and is licensed under **MIT-ZARYA** ([LICENSE.md](../../src/Verstack.ECS/LICENSE.md)). MIT-ZARYA permits use and redistribution with one condition: if the software is localized into multiple languages, a Russian localization is mandatory and must be no less complete than any other. Verstack meets this — `docs/ru/` and `README.ru.md` mirror the English ones. The license file is included in the build output of `Verstack.ECS`.
-
-## Current status
-
-- ✅ ECS core: vendored Leopotam.EcsProto + QoL, three worlds (Global/Gateway/Realm), `AutoInjectModule`/`[DI]`.
-- ✅ Main tick at 20 TPS with try/catch and instant stop on signal.
-- ✅ Network: `TcpNetworkService` (accept → ConcurrentQueue), `NetworkChannel`, `PacketFrame` framing with `PacketOutbound` for bundles. Passive, thread/ECS decoupled.
-- ✅ Gateway/Global: server-list ping answers with MOTD/version/slots via the GLOBAL cache at zero allocations.
-- ✅ Handshake: parsing, populating `NetworkSession` with data (protocolVersion, IP, serverAddress, serverPort).
-- ✅ Status: full ping exchange (Request → JSON Response, Ping → Pong) through the bundle conveyor, entity-backed.
-- ✅ Login: offline-mode flow — Login Start → Set Compression → Login Success → Login Acknowledged. Offline UUID v3 from `"OfflinePlayer:<name>"`, protocol-776 Session ID field. Channel closes on phase completion (REALM/Configuration not implemented yet).
-- ✅ Compression: zlib (RFC 1950) framing in both directions, per-channel threshold (256, vanilla standard), GC-free cold path. Enabled after Set Compression.
-- ✅ NBT: GC-free writer + reader — `NbtWriter`/`NbtReader` (`ref struct`, `Span<byte>`, `NbtFrame` stack), `ModifiedUtf8` (both directions), networked root. Reader: sequental-core + lookup by name. The DOM is deferred.
-- 🔨 Configuration: the skeleton (ClientInformation → KnownPacks → Registry Data × 29 → Feature Flags → Finish → Disconnect) works; Registry Data (S→C 0x07) is sent listing-only (29 synced registries of 26.2), accepted by the 26.2 client. Update Tags (S→C 0x08) is still missing — the client crashes on tag validation; this is the next task.
-- 🔨 Realm: the Play phase is not implemented, the layer is empty.
+World composition (visibility, registration of foreign worlds) is performed in `ServerComposer.Compose` in three phases:
+world creation → visibility setup → layer initialization. Details — in [engine/index.md](engine/index.md).
