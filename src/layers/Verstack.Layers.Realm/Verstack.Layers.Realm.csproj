@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\engine\Verstack.Engine.Ecs\Verstack.Engine.Ecs.csproj" />
+      <ProjectReference Include="..\Verstack.Layers.Global\Verstack.Layers.Global.csproj" />
+    </ItemGroup>
+
+</Project>

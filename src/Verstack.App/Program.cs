@@ -1,7 +1,7 @@
-﻿using Verstack.Layer.Gateway;
-using Verstack.Layer.Global;
-using Verstack.Layer.Realm;
-using Verstack.Lifecycle;
+﻿using Verstack.Engine.Lifecycle;
+using Verstack.Layers.Gateway;
+using Verstack.Layers.Global;
+using Verstack.Layers.Realm;
 using Verstack.Shared.Assets;
 
 AssetSource.PreloadTagBatch();

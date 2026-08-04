@@ -2,17 +2,17 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <RootNamespace>Verstack.App</RootNamespace>
-        <AssemblyName>Verstack</AssemblyName>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Verstack.ECS\Verstack.ECS.csproj" />
-        <ProjectReference Include="..\Verstack.Layer.Gateway\Verstack.Layer.Gateway.csproj" />
-        <ProjectReference Include="..\Verstack.Layer.Global\Verstack.Layer.Global.csproj" />
-        <ProjectReference Include="..\Verstack.Layer.Realm\Verstack.Layer.Realm.csproj" />
-        <ProjectReference Include="..\Verstack.Lifecycle\Verstack.Lifecycle.csproj" />
-        <ProjectReference Include="..\Verstack.Network\Verstack.Network.csproj"/>
+        <ProjectReference Include="..\engine\Verstack.Engine.Lifecycle\Verstack.Engine.Lifecycle.csproj" />
+        <ProjectReference Include="..\layers\Verstack.Layers.Gateway\Verstack.Layers.Gateway.csproj" />
+        <ProjectReference Include="..\layers\Verstack.Layers.Global\Verstack.Layers.Global.csproj" />
+        <ProjectReference Include="..\layers\Verstack.Layers.Realm\Verstack.Layers.Realm.csproj" />
+        <ProjectReference Include="..\shared\Verstack.Shared.Assets\Verstack.Shared.Assets.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -20,4 +20,5 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
+
 </Project>

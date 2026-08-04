@@ -1,0 +1,34 @@
+<Solution>
+  <Folder Name="/engine/">
+    <Project Path="engine/Verstack.Engine.Bridge/Verstack.Engine.Bridge.csproj" />
+    <Project Path="engine/Verstack.Engine.Ecs/Verstack.Engine.Ecs.csproj" />
+    <Project Path="engine/Verstack.Engine.Lifecycle/Verstack.Engine.Lifecycle.csproj" />
+    <Project Path="engine/Verstack.Engine.Network/Verstack.Engine.Network.csproj" />
+  </Folder>
+  <Folder Name="/engine/benchmark/">
+    <Project Path="engine/!benchmark/Verstack.Engine.Network.Benchmark/Verstack.Engine.Network.Benchmark.csproj" />
+  </Folder>
+  <Folder Name="/engine/tests/">
+    <Project Path="engine/!tests/Verstack.Engine.Network.Tests/Verstack.Engine.Network.Tests.csproj" />
+  </Folder>
+  <Folder Name="/layers/">
+    <Project Path="layers/Verstack.Layers.Gateway/Verstack.Layers.Gateway.csproj" />
+    <Project Path="layers/Verstack.Layers.Global/Verstack.Layers.Global.csproj" />
+    <Project Path="layers/Verstack.Layers.Realm/Verstack.Layers.Realm.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/Verstack.Shared.Assets/Verstack.Shared.Assets.csproj" />
+    <Project Path="shared/Verstack.Shared.Debug/Verstack.Shared.Debug.csproj" />
+    <Project Path="shared/Verstack.Shared.Nbt/Verstack.Shared.Nbt.csproj" />
+  </Folder>
+  <Folder Name="/shared/benchmark/">
+    <Project Path="shared/!benchmark/Verstack.Shared.Nbt.Benchmark/Verstack.Shared.Nbt.Benchmark.csproj" />
+  </Folder>
+  <Folder Name="/shared/tests/">
+    <Project Path="shared/!tests/Verstack.Shared.Nbt.Tests/Verstack.Shared.Nbt.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Verstack.Tools.DataCompiler/Verstack.Tools.DataCompiler.csproj" />
+  </Folder>
+  <Project Path="Verstack.App/Verstack.App.csproj" />
+</Solution>
