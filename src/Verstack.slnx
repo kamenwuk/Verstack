@@ -20,12 +20,14 @@
     <Project Path="shared/Verstack.Shared.Assets/Verstack.Shared.Assets.csproj" />
     <Project Path="shared/Verstack.Shared.Debug/Verstack.Shared.Debug.csproj" />
     <Project Path="shared/Verstack.Shared.Nbt/Verstack.Shared.Nbt.csproj" />
+    <Project Path="shared/Verstack.Shared.Voxel/Verstack.Shared.Voxel.csproj" />
   </Folder>
   <Folder Name="/shared/benchmark/">
     <Project Path="shared/!benchmark/Verstack.Shared.Nbt.Benchmark/Verstack.Shared.Nbt.Benchmark.csproj" />
   </Folder>
   <Folder Name="/shared/tests/">
     <Project Path="shared/!tests/Verstack.Shared.Nbt.Tests/Verstack.Shared.Nbt.Tests.csproj" />
+    <Project Path="shared/Verstack.Shared.Voxel.Tests/Verstack.Shared.Voxel.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Verstack.Tools.DataCompiler/Verstack.Tools.DataCompiler.csproj" />

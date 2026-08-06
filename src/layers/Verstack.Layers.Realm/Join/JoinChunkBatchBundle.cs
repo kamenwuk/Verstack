@@ -1,6 +1,8 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Engine.Network.Packet.Writers;
 using Verstack.Engine.Network.Packet;
+using Verstack.Shared.Voxel;
+using Verstack.Layers.Realm.Chunks;
 using Leopotam.EcsProto;
 
 namespace Verstack.Layers.Realm.Join;
@@ -15,7 +17,11 @@ namespace Verstack.Layers.Realm.Join;
 /// </summary>
 internal sealed class JoinChunkBatchBundle : PacketBundle
 {
+    // Stateless, возвращает идентичные колонки для любых координат — один экземпляр на сервер.
+    private static readonly FlatGenerator _generator = new();
+
     public override int StepCount => 1;
+
     public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
         // 0. game_event (0x26), event 13: Start waiting for level chunks — прелюдия к batch.
@@ -25,7 +31,7 @@ internal sealed class JoinChunkBatchBundle : PacketBundle
             .WriteFloat(0.0f); // Value — для события 13 игнорируется, по стандарту 0.0f.
         outbound.Commit(ref gameEvent);
 
-        // 1. Set Center Chunk (0x5E)
+        // 1. Set Center Chunk (0x5E) — центр сетки загрузки (0,0).
         var centerChunk = outbound.Begin();
         centerChunk.WriteVarInt(0x5E)
             .WriteVarInt(0) // Chunk X
@@ -37,17 +43,18 @@ internal sealed class JoinChunkBatchBundle : PacketBundle
         batchStart.WriteVarInt(0x0C); // chunk_batch_start
         outbound.Commit(ref batchStart);
 
-        // 3. Сетка чанков 5×5 (от -2 до 2)
+        // 3. Сетка чанков 5×5 (от -2 до 2) — FlatGenerator, 25 колонок.
+        var wire = new ChunkWireWriter();
         for (int x = -2; x <= 2; x++)
         {
             for (int z = -2; z <= 2; z++)
             {
-                // Chunk chunk = FlatGenerator.Generate(x, z);
-                //
-                // var chunkData = outbound.Begin();
-                // chunkData.WriteVarInt(0x2D); // level_chunk_with_light
-                // chunk.SerializeBody(ref chunkData);
-                // outbound.Commit(ref chunkData);
+                var column = _generator.Generate(x, z);
+
+                var chunkData = outbound.Begin();
+                chunkData.WriteVarInt(0x2D); // level_chunk_with_light
+                wire.Write(ref chunkData, column, x, z);
+                outbound.Commit(ref chunkData);
             }
         }
 

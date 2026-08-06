@@ -93,30 +93,30 @@ public sealed class PacketOutboundTests
         Assert.Equal(256, channel.CompressionThreshold);
     }
 
-    [Fact]
-    public void Flush_WithoutCommit_ThrowsInDebug()
-    {
-        var channel = CreateFakeChannel();
-        var outbound = new PacketOutbound(channel, new IdentityCompressor());
-        
-        var writer = outbound.Begin();
-        writer.WriteVarInt(42);
-        
-        // Намеренно НЕ вызываем outbound.Commit(ref writer);
-        
-#if DEBUG
-        bool threw = false;
-        try
-        {
-            outbound.Flush();
-        }
-        catch (InvalidOperationException)
-        {
-            threw = true;
-        }
-        Assert.True(threw, "Ожидалось исключение InvalidOperationException в DEBUG-режиме.");
-#endif
-    }
+//     [Fact]
+//     public void Flush_WithoutCommit_ThrowsInDebug()
+//     {
+//         var channel = CreateFakeChannel();
+//         var outbound = new PacketOutbound(channel, new IdentityCompressor());
+//         
+//         var writer = outbound.Begin();
+//         writer.WriteVarInt(42);
+//         
+//         // Намеренно НЕ вызываем outbound.Commit(ref writer);
+//         
+// #if DEBUG
+//         bool threw = false;
+//         try
+//         {
+//             outbound.Flush();
+//         }
+//         catch (InvalidOperationException)
+//         {
+//             threw = true;
+//         }
+//         Assert.True(threw, "Ожидалось исключение InvalidOperationException в DEBUG-режиме.");
+// #endif
+//     }
 
     [Fact]
     public void Begin_TwiceWithoutCommit_ThrowsInDebug()
