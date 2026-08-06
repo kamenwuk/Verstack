@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Encoding;
 
 /// <summary>
 /// Paletted Container биомов секции: 64 записи (4³), палитра biome-id.

@@ -1,4 +1,6 @@
-namespace Verstack.Shared.Voxel;
+using Verstack.Shared.Voxel.Model;
+
+namespace Verstack.Shared.Voxel.Generation;
 
 /// <summary>
 /// Плоский мир (superflat). Поверхность травы на Y=64 — совпадает с SpawnConstants.SPAWN_BLOCK_Y,

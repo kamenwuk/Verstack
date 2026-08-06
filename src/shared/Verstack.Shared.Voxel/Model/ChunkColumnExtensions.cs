@@ -1,4 +1,4 @@
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Model;
 
 /// <summary>
 /// Массовые операции над колонкой чанка. Вынесены из <see cref="ChunkColumn"/>, чтобы

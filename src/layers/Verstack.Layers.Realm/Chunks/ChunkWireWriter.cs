@@ -1,5 +1,5 @@
 using Verstack.Engine.Network.Packet.Outbound;
-using Verstack.Shared.Voxel;
+using Verstack.Shared.Voxel.Model;
 using System.Buffers;
 
 namespace Verstack.Layers.Realm.Chunks;

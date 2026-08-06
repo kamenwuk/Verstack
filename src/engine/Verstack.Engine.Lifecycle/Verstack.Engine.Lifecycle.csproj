@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\shared\Verstack.Shared.Debug\Verstack.Shared.Debug.csproj" />
+      <ProjectReference Include="..\..\shared\Verstack.Shared.Voxel\Verstack.Shared.Voxel.csproj" />
       <ProjectReference Include="..\Verstack.Engine.Bridge\Verstack.Engine.Bridge.csproj" />
       <ProjectReference Include="..\Verstack.Engine.Ecs\Verstack.Engine.Ecs.csproj" />
       <ProjectReference Include="..\Verstack.Engine.Network\Verstack.Engine.Network.csproj" />

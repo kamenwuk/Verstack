@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Encoding;
 
 /// <summary>
 /// Paletted Container состояний блоков секции: 4096 записей (16³), палитра state-id.

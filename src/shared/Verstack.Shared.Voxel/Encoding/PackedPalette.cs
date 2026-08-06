@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Encoding;
 
 /// <summary>
 /// Упакованная палитра — формат Paletted Container протокола 776: локальная палитра

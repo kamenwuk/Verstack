@@ -1,3 +1,5 @@
+using Verstack.Shared.Voxel.Model;
+
 namespace Verstack.Shared.Voxel.Tests;
 
 public class ChunkSectionTests

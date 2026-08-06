@@ -1,4 +1,5 @@
 using Verstack.Engine.Network.Compression;
+using Verstack.Shared.Voxel.Storage;
 using Verstack.Engine.Network;
 using Verstack.Engine.Bridge;
 using Verstack.Shared.Debug;
@@ -9,6 +10,7 @@ namespace Verstack.Engine.Lifecycle;
 public sealed class EntryPoint
 {
     private ServerTime _serverTime = null!;
+    private ChunkBufferPool _chunkPool = null!;
     private ProtoSystems[] _layers = null!;
         
     private bool _isRunning;
@@ -28,9 +30,11 @@ public sealed class EntryPoint
         
         // 1. Инициализация базовых сервисов
         _serverTime = new ServerTime();
+        _chunkPool = new ChunkBufferPool();
 
         var composer = new ServerComposer(globalLayer, bridgeHandoffRouter, netHubModule, layers)
-            .AddService(_serverTime);
+            .AddService(_serverTime)
+            .AddService(_chunkPool);
 
         _layers = composer.Compose();
 

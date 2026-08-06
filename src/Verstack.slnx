@@ -19,7 +19,9 @@
   <Folder Name="/shared/">
     <Project Path="shared/Verstack.Shared.Assets/Verstack.Shared.Assets.csproj" />
     <Project Path="shared/Verstack.Shared.Debug/Verstack.Shared.Debug.csproj" />
+    <Project Path="shared/Verstack.Shared.Maths/Verstack.Shared.Maths.csproj" />
     <Project Path="shared/Verstack.Shared.Nbt/Verstack.Shared.Nbt.csproj" />
+    <Project Path="shared/Verstack.Shared.Spatial/Verstack.Shared.Spatial.csproj" />
     <Project Path="shared/Verstack.Shared.Voxel/Verstack.Shared.Voxel.csproj" />
   </Folder>
   <Folder Name="/shared/benchmark/">
@@ -27,6 +29,7 @@
   </Folder>
   <Folder Name="/shared/tests/">
     <Project Path="shared/!tests/Verstack.Shared.Nbt.Tests/Verstack.Shared.Nbt.Tests.csproj" />
+    <Project Path="shared/Verstack.Shared.Spatial.Tests/Verstack.Shared.Spatial.Tests.csproj" />
     <Project Path="shared/Verstack.Shared.Voxel.Tests/Verstack.Shared.Voxel.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

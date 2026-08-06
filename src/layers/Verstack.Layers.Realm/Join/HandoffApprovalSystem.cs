@@ -6,6 +6,7 @@ using Verstack.Engine.Bridge;
 using Verstack.Layers.Global;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
+using Verstack.Layers.Realm.Chunks;
 
 namespace Verstack.Layers.Realm.Join;
 
@@ -48,6 +49,13 @@ internal sealed class HandoffApprovalSystem : IProtoInitSystem, IProtoRunSystem
                 _realmCache.UserProfiles.Add(entity) = realmData.Profile;
                 _realmCache.Sessions.Add(entity) = realmData.Session;
                 _realmCache.FlowStates.Add(entity) = new PacketFlowState(0, 0);
+                
+                _realmCache.ChunkViewports.Add(entity) = new ChunkViewportInf
+                {
+                    CenterX = 0,
+                    CenterZ = 0,
+                    Radius = ChunkViewportInf.INITIAL_RADIUS
+                };
             }
         }
         

@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Encoding;
 
 /// <summary>
 /// Запись LEB128 VarInt в Span (wire-формат протокола Minecraft).

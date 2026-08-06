@@ -252,6 +252,17 @@ namespace Leopotam.EcsProto.QoL {
             }
             return systems;
         }
+        
+        /// <summary>
+        /// Получить сервис по типу. Типизированная обёртка над <see cref="IProtoSystems.Services"/>,
+        /// для мест, куда не дотягивается <c>[DI]</c> (бандлы создаются вручную через <c>new</c>,
+        /// минуя <c>AutoInjectModule</c>).
+        /// </summary>
+        public static T GetService<T>(this IProtoSystems systems)
+            where T : class
+        {
+            return (T)systems.Services()[typeof(T)];
+        }
 
         public static IProtoSystems DelHere<T> (this IProtoSystems systems, string worldName = default, int pointWeight = default)
             where T : struct {

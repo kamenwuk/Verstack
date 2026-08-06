@@ -1,4 +1,6 @@
-namespace Verstack.Shared.Voxel;
+using Verstack.Shared.Voxel.Model;
+
+namespace Verstack.Shared.Voxel.Generation;
 
 /// <summary>
 /// Генератор чанка: создаёт содержимое колонки по её координатам.

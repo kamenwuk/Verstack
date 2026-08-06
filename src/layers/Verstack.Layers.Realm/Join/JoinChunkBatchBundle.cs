@@ -1,9 +1,11 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Engine.Network.Packet.Outbound;
 using Verstack.Engine.Network.Packet.Inbound;
-using Verstack.Shared.Voxel;
+using Verstack.Shared.Voxel.Generation;
 using Verstack.Layers.Realm.Chunks;
 using Leopotam.EcsProto;
+using Leopotam.EcsProto.QoL;
+using Verstack.Shared.Voxel.Storage;
 
 namespace Verstack.Layers.Realm.Join;
 
@@ -18,9 +20,14 @@ namespace Verstack.Layers.Realm.Join;
 internal sealed class JoinChunkBatchBundle : PacketBundle
 {
     // Stateless, возвращает идентичные колонки для любых координат — один экземпляр на сервер.
-    private static readonly FlatGenerator _generator = new();
+    private ChunkBufferPool _pool = null!;
 
     public override int StepCount => 1;
+    
+    public override void Init(IProtoSystems systems)
+    {
+        _pool = systems.GetService<ChunkBufferPool>();
+    }
 
     public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
     {
@@ -49,7 +56,7 @@ internal sealed class JoinChunkBatchBundle : PacketBundle
         {
             for (int z = -2; z <= 2; z++)
             {
-                var column = _generator.Generate(x, z);
+                var column = _pool.Acquire(x, z);
 
                 var chunkData = outbound.Begin();
                 chunkData.WriteVarInt(0x2D); // level_chunk_with_light

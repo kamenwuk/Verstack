@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
+using Verstack.Shared.Voxel.Encoding;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Model;
 
 /// <summary>
 /// Секция чанка: 16³ блоков + биомы. Единица вертикального дробления колонки.

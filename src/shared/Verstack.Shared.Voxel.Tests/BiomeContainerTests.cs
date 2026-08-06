@@ -1,4 +1,4 @@
-using Verstack.Shared.Voxel;
+using Verstack.Shared.Voxel.Encoding;
 
 namespace Verstack.Shared.Voxel.Tests;
 

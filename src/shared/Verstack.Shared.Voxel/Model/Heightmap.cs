@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
+using Verstack.Shared.Voxel.Encoding;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Model;
 
 /// <summary>
 /// Heightmap колонки: 256 записей (по одной на колонку 16×16), упакованных в <c>long[]</c>

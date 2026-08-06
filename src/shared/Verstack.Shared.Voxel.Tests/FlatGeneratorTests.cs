@@ -1,3 +1,5 @@
+using Verstack.Shared.Voxel.Generation;
+
 namespace Verstack.Shared.Voxel.Tests;
 
 public class FlatGeneratorTests

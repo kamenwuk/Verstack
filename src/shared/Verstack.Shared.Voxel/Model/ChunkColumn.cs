@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Shared.Voxel;
+namespace Verstack.Shared.Voxel.Model;
 
 /// <summary>
 /// Колонка чанка: 24 секции (16³ каждая) + две heightmaps. Это «чанк» в разговорном смысле —
