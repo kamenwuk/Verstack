@@ -1,4 +1,4 @@
-using Verstack.Engine.Network.Packet.Readers;
+using Verstack.Engine.Network.Packet.Inbound;
 using Verstack.Engine.Network.Packet;
 
 namespace Verstack.Layers.Gateway

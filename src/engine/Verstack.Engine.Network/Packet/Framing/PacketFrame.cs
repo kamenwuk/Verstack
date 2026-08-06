@@ -1,9 +1,9 @@
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
 using Verstack.Engine.Network.Compression;
 using System.Runtime.CompilerServices;
 using System.Buffers;
 
-namespace Verstack.Engine.Network.Packet;
+namespace Verstack.Engine.Network.Packet.Framing;
 
 /// <summary>
 /// Обеспечивает фрейминг пакетов протокола: разбор и упаковку кадров с учётом порога сжатия.

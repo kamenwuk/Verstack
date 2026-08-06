@@ -1,6 +1,6 @@
 using Verstack.Engine.Network.Packet.Pipeline;
-using Verstack.Engine.Network.Packet.Readers;
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
+using Verstack.Engine.Network.Packet.Inbound;
 using Verstack.Engine.Network.Packet;
 using Verstack.Layers.Global.User;
 using Verstack.Engine.Lifecycle;

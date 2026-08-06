@@ -7,6 +7,8 @@ using System.Net.Sockets;
 using Leopotam.EcsProto;
 using System.Buffers;
 using System.Net;
+using Verstack.Engine.Network.Packet.Framing;
+using Verstack.Engine.Network.Packet.Inbound;
 
 namespace Verstack.Engine.Network;
 

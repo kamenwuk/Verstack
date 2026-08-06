@@ -1,6 +1,5 @@
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
 using Verstack.Engine.Network.Compression;
-using Verstack.Engine.Network.Packet;
 using System.Net.Sockets;
 using System.Buffers;
 using System.Net;

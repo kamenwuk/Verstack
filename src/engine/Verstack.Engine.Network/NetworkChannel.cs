@@ -2,6 +2,8 @@ using Verstack.Engine.Network.Packet;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Net.Sockets;
+using Verstack.Engine.Network.Packet.Inbound;
+using Verstack.Engine.Network.Packet.Outbound;
 
 namespace Verstack.Engine.Network;
 

@@ -1,4 +1,4 @@
-namespace Verstack.Engine.Network.Packet;
+namespace Verstack.Engine.Network.Packet.Framing;
 
 /// <summary>
 /// Результат попытки разобрать один кадр из буфера. Управляет поведением read-цикла:

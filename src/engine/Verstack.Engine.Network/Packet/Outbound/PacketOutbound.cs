@@ -1,8 +1,8 @@
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Framing;
 using Verstack.Engine.Network.Compression;
 using System.Buffers;
 
-namespace Verstack.Engine.Network.Packet;
+namespace Verstack.Engine.Network.Packet.Outbound;
 
 /// <summary>
 /// Управляет жизненным циклом формирования исходящих пакетов: арендой буферов, фреймингом и постановкой в очередь отправки.

@@ -1,6 +1,6 @@
 using Verstack.Engine.Network.Packet.Pipeline;
-using Verstack.Engine.Network.Packet.Writers;
-using Verstack.Engine.Network.Packet;
+using Verstack.Engine.Network.Packet.Outbound;
+using Verstack.Engine.Network.Packet.Inbound;
 using Verstack.Shared.Nbt.Writer;
 using Verstack.Layers.Global;
 using Verstack.Shared.Assets;

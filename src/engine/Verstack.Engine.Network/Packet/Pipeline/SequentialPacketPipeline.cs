@@ -1,6 +1,8 @@
 using Verstack.Engine.Network.Compression;
 using Verstack.Shared.Debug;
 using Leopotam.EcsProto;
+using Verstack.Engine.Network.Packet.Inbound;
+using Verstack.Engine.Network.Packet.Outbound;
 
 namespace Verstack.Engine.Network.Packet.Pipeline;
 
@@ -69,7 +71,7 @@ public sealed class SequentialPacketPipeline
             if (state.BundleIndex >= _bundles.Length)
                 return PipelineSessionStatus.Transfer;
 
-            var outbound = new PacketOutbound(channel, _compressor);
+            var outbound = OutboundLease.Acquire(channel, _compressor);
             try
             {
                 PacketHandleResult result;

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Buffers.Binary;
 
-namespace Verstack.Engine.Network.Packet.Writers;
+namespace Verstack.Engine.Network.Packet.Outbound;
 
 /// <summary>
 /// Числовые типы данных протокола Minecraft (VarInt, Fixed Integers, Floats, Booleans).

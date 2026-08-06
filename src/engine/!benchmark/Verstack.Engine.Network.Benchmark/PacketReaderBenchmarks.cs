@@ -1,5 +1,5 @@
-using Verstack.Engine.Network.Packet.Readers;
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
+using Verstack.Engine.Network.Packet.Inbound;
 using Verstack.Engine.Network.Packet;
 using BenchmarkDotNet.Attributes;
 using System.Buffers;

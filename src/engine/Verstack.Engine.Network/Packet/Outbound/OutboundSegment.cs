@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Verstack.Engine.Network.Packet;
+namespace Verstack.Engine.Network.Packet.Outbound;
 
 /// <summary>
 /// Порция байтов, подготовленная для отправки клиенту. Деталь реализации <see cref="Network.NetworkChannel"/>:

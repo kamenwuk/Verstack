@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Verstack.Engine.Network.Packet.Writers;
+namespace Verstack.Engine.Network.Packet.Outbound;
 
 /// <summary>
 /// Запись строковых типов данных (UTF-8 с VarInt-префиксом длины).

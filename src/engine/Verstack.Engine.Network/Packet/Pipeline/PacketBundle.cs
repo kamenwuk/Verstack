@@ -1,4 +1,6 @@
 using Leopotam.EcsProto;
+using Verstack.Engine.Network.Packet.Inbound;
+using Verstack.Engine.Network.Packet.Outbound;
 
 namespace Verstack.Engine.Network.Packet.Pipeline;
 

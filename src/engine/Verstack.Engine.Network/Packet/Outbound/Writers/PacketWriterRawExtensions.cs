@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Verstack.Engine.Network.Packet.Writers;
+namespace Verstack.Engine.Network.Packet.Outbound;
 
 public static class PacketWriterRawExtensions
 {

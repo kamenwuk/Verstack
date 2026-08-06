@@ -1,4 +1,4 @@
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
 
 namespace Verstack.Engine.Network.Tests
 {

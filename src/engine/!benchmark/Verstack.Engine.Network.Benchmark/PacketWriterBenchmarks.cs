@@ -1,4 +1,4 @@
-using Verstack.Engine.Network.Packet.Writers;
+using Verstack.Engine.Network.Packet.Outbound;
 using BenchmarkDotNet.Attributes;
 
 namespace Verstack.Engine.Network.Benchmark;

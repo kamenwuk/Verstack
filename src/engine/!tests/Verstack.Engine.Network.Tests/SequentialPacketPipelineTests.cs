@@ -1,5 +1,6 @@
 using Verstack.Engine.Network.Packet.Pipeline;
-using Verstack.Engine.Network.Packet;
+using Verstack.Engine.Network.Packet.Outbound;
+using Verstack.Engine.Network.Packet.Inbound;
 using System.Net.Sockets;
 using Leopotam.EcsProto;
 using System.Net;

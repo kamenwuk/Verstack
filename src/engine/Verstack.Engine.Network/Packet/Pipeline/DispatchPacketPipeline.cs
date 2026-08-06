@@ -1,6 +1,7 @@
 using Verstack.Engine.Network.Compression;
 using Verstack.Shared.Debug;
 using Leopotam.EcsProto;
+using Verstack.Engine.Network.Packet.Outbound;
 
 namespace Verstack.Engine.Network.Packet.Pipeline;
 
@@ -61,7 +62,7 @@ public sealed class DispatchPacketPipeline
         if (channel.IncomingPackets.Count == 0)
             return PipelineSessionStatus.Ok;
 
-        var outbound = new PacketOutbound(channel, _compressor);
+        var outbound = OutboundLease.Acquire(channel, _compressor);
         try
         {
             while (channel.IncomingPackets.TryDequeue(out var rawPacket))
