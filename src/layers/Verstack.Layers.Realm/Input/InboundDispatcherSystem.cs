@@ -22,11 +22,13 @@ internal sealed class InboundDispatcherSystem : IProtoInitSystem, IProtoRunSyste
     
     public void Init(IProtoSystems systems)
     {
+        var moveInput = new AcceptMoveInputBundle();
+        
         _pipeline = new DispatchPacketPipeline(systems, _compressor, new Dictionary<int, PacketBundle>()
         {
             { 0x00, new ConfirmTeleportBundle() },
-            { 0x1E, new SetPlayerPositionBundle() },
-            { 0x1F, new SetPlayerPositionAndRotationBundle() }
+            { 0x1E, moveInput },
+            { 0x1F, moveInput }
         });
     }
     
