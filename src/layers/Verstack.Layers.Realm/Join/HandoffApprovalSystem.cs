@@ -1,13 +1,12 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Engine.Network.Compression;
-using Verstack.Layers.Realm.User;
+using Verstack.Layers.Realm.Session;
+using Verstack.Layers.Realm.Shared;
 using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
 using Verstack.Layers.Global;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
-using Verstack.Layers.Realm.Chunks;
-using Verstack.Shared.Maths;
 
 namespace Verstack.Layers.Realm.Join;
 
@@ -19,14 +18,18 @@ namespace Verstack.Layers.Realm.Join;
 internal sealed class HandoffApprovalSystem : IProtoInitSystem, IProtoRunSystem
 {
     [DI] private readonly BridgeStateCacheStore _bridgeStateCacheStore = null!;
-    [DI] private readonly UserSessionCacheStore _realmCache = null!;
+    [DI] private readonly UserSessionCacheStore _userSessionCacheStore = null!;
     
     [DI(ServerWorldScopes.GLOBAL)] private readonly IPacketCompressor _compressor = null!;
 
     private SequentialPacketPipeline _pipeline = null!;
+    private HandoffSeeder _handoffSeeder = null!;
     
     public void Init(IProtoSystems systems)
     {
+        _handoffSeeder = new HandoffSeeder();
+        _handoffSeeder.Init(systems);
+        
         _pipeline = new SequentialPacketPipeline(systems, _compressor, [
             new JoinLoginBundle(),
             new JoinSpawnPointBundle(),
@@ -47,41 +50,40 @@ internal sealed class HandoffApprovalSystem : IProtoInitSystem, IProtoRunSystem
             {
                 var entity = payload.Entity;
                 
-                _realmCache.UserProfiles.Add(entity) = realmData.Profile;
-                _realmCache.Sessions.Add(entity) = realmData.Session;
-                _realmCache.FlowStates.Add(entity) = new PacketFlowState(0, 0);
-                _realmCache.Transforms.Add(entity) = new TransformInf
-                {
-                    Position = new Vector3(8, 65, 8)
-                };
-                _realmCache.ChunkViewports.Add(entity) = new ChunkViewportInf
-                {
-                    LastCenterX = 0,
-                    LastCenterZ = 0,
-                    Radius = ChunkViewportInf.INITIAL_RADIUS
-                };
+                _userSessionCacheStore.UserProfiles.Add(entity) = realmData.Profile;
+                _userSessionCacheStore.Sessions.Add(entity) = realmData.Session;
+                _userSessionCacheStore.FlowStates.Add(entity) = new PacketFlowState(0, 0);
             }
         }
         
         // Фаза 2 — join-pipeline: прогоняем join-бандлы по подключённым сущностям.
-        foreach (var entity in _bridgeStateCacheStore.ConnectedFilter)
+        foreach (var entity in _userSessionCacheStore.ItJoining)
         {
             var channel = _bridgeStateCacheStore.GetChannel(entity);
-
-            ref var flowState = ref _realmCache.FlowStates.Get(entity);
+            
+            ref var flowState = ref _userSessionCacheStore.FlowStates.Get(entity);
 
             var status = _pipeline.ProcessSession(entity, channel, ref flowState);
 
-            if (status == PipelineSessionStatus.Transfer)
-                continue;
-
-            if (status == PipelineSessionStatus.Kick)
+            switch (status)
             {
-                // Нарушение протокола — рвём соединение. Сеть сообщит роутеру,
-                // BridgeDisconnectSystem повесит BridgeClientDisconnected,
-                // BridgeCleanupSystem удалит сущность.
-                channel.Disconnect();
+                case PipelineSessionStatus.Transfer:
+                {
+                    _userSessionCacheStore.FlowStates.Del(entity);
+                    _handoffSeeder.Seed(entity);
+                    break;
+                }
+                case PipelineSessionStatus.Kick:
+                {
+                    // Нарушение протокола — рвём соединение. Сеть сообщит роутеру,
+                    // BridgeDisconnectSystem повесит BridgeClientDisconnected,
+                    // BridgeCleanupSystem удалит сущность.
+                    channel.Disconnect();
+                    break;
+                }
             }
         }
+        
+
     }
 }

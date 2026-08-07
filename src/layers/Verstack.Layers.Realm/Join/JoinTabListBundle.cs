@@ -1,7 +1,7 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Engine.Network.Packet.Outbound;
 using Verstack.Engine.Network.Packet.Inbound;
-using Verstack.Layers.Realm.User;
+using Verstack.Layers.Realm.Shared;
 using Verstack.Layers.Global;
 using Verstack.Shared.Debug;
 using Leopotam.EcsProto.QoL;

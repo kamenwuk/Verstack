@@ -1,13 +1,13 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Engine.Network.Packet.Outbound;
 using Verstack.Engine.Network.Packet.Inbound;
-using Verstack.Layers.Realm.User;
-using Verstack.Shared.Debug;
-using Leopotam.EcsProto;
-using Leopotam.EcsProto.QoL;
-using Verstack.Engine.Lifecycle;
+using Verstack.Layers.Realm.Session.Physics;
 using Verstack.Layers.Realm.Movement;
+using Verstack.Engine.Lifecycle;
+using Leopotam.EcsProto.QoL;
+using Verstack.Shared.Debug;
 using Verstack.Shared.Maths;
+using Leopotam.EcsProto;
 
 namespace Verstack.Layers.Realm.Input.Movement;
 
@@ -27,12 +27,12 @@ internal sealed class AcceptMoveInputBundle : PacketBundle
 {
     public override int StepCount => 1;
 
-    private UserSessionCacheStore _cache = null!;
+    private PhysicsCacheStore _physics = null!;
 
     public override void Init(IProtoSystems systems)
     {
         var world = systems.NamedWorlds()[ServerWorldScopes.REALM];
-        _cache = world.Aspect<UserSessionCacheStore>();
+        _physics = world.Aspect<PhysicsCacheStore>();
     }
 
     public override PacketHandleResult TryProcess(int stepIndex, ProtoEntity entity, in RawPacket packet, ref PacketOutbound outbound)
@@ -59,7 +59,7 @@ internal sealed class AcceptMoveInputBundle : PacketBundle
             return PacketHandleResult.Kick;
 
         // Последний пакет за тик перетирает предыдущие: важна финальная позиция.
-        _cache.MoveReqs.GetOrAdd(entity) = new MoveReq
+        _physics.MoveReqs.GetOrAdd(entity) = new MoveReq
         {
             Position = new Vector3((float)x, (float)y, (float)z),
             Yaw = yaw,

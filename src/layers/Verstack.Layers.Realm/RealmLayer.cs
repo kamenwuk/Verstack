@@ -1,11 +1,12 @@
-﻿using Verstack.Layers.Realm.Input;
-using Verstack.Layers.Realm.User;
+﻿using Verstack.Layers.Realm.Session.Physics;
+using Verstack.Layers.Realm.Session.Chunks;
+using Verstack.Layers.Realm.Shared;
+using Verstack.Layers.Realm.Input;
 using Verstack.Layers.Realm.Join;
 using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
-using Verstack.Layers.Realm.Movement;
 
 namespace Verstack.Layers.Realm;
 
@@ -24,7 +25,9 @@ public sealed class RealmLayer : ServerFeatureLayer
     {
         return
         [
-            new UserSessionCacheStore()
+            new UserSessionCacheStore(),
+            new PhysicsCacheStore(),
+            new ChunkCacheStore()
         ];
     }
 

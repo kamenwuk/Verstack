@@ -88,6 +88,9 @@ namespace Leopotam.EcsProto {
     }
 
     public sealed class ProtoIt : IProtoIt {
+        
+        public IReadOnlyList<Type> IncTypes => _iTypes;
+        
         ProtoWorld _world;
         Type[] _iTypes;
         IProtoPool[] _incPools;
@@ -236,7 +239,11 @@ namespace Leopotam.EcsProto {
         }
     }
 
-    public sealed class ProtoItExc : IProtoIt {
+    public sealed class ProtoItExc : IProtoIt
+    {
+        public IReadOnlyList<Type> IncTypes => _iTypes;
+        public IReadOnlyList<Type> ExcTypes => _eTypes;
+        
         ProtoWorld _world;
         Type[] _iTypes;
         IProtoPool[] _incPools;

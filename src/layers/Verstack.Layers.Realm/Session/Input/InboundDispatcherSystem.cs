@@ -1,6 +1,7 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Layers.Realm.Input.Movement;
 using Verstack.Engine.Network.Compression;
+using Verstack.Layers.Realm.Shared;
 using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
 using Verstack.Shared.Debug;
@@ -16,9 +17,11 @@ namespace Verstack.Layers.Realm.Input;
 internal sealed class InboundDispatcherSystem : IProtoInitSystem, IProtoRunSystem
 {
     [DI] private readonly BridgeStateCacheStore _bridgeStateCacheStore = null!;
+    [DI] private readonly UserSessionCacheStore _userSessionCacheStore = null!;
+    
     [DI(ServerWorldScopes.GLOBAL)] private readonly IPacketCompressor _compressor = null!;
 
-    private DispatchPacketPipeline _pipeline;
+    private DispatchPacketPipeline _pipeline = null!;
     
     public void Init(IProtoSystems systems)
     {
@@ -34,11 +37,9 @@ internal sealed class InboundDispatcherSystem : IProtoInitSystem, IProtoRunSyste
     
     public void Run()
     {
-        // Ищем всех сущностей с активной сетевой сессией
-        foreach (var entity in _bridgeStateCacheStore.ConnectedFilter)
+        foreach (var entity in _userSessionCacheStore.ItPlaying)
         {
             var channel = _bridgeStateCacheStore.GetChannel(entity);
-
             var status = _pipeline.ProcessSession(entity, channel);
             if (status != PipelineSessionStatus.Kick)
                 continue;

@@ -1,10 +1,8 @@
-using Leopotam.EcsProto;
+using Verstack.Layers.Realm.Shared;
 using Leopotam.EcsProto.QoL;
-using Verstack.Engine.Bridge;
-using Verstack.Engine.Lifecycle;
-using Verstack.Layers.Realm.User;
+using Leopotam.EcsProto;
 
-namespace Verstack.Layers.Realm.Movement;
+namespace Verstack.Layers.Realm.Session.Physics;
 
 /// <summary>
 /// Фиксирует позицию игрока в мире: читает ввод <see cref="MoveReq"/> (накопленный за тик
@@ -16,31 +14,31 @@ namespace Verstack.Layers.Realm.Movement;
 /// серверная коррекция — она будет отдельной системой, пишущей в <see cref="TransformInf"/>
 /// (ТП, knockback), а эта система останется каналом ввода.</para>
 ///
-/// <para>Регистрируется в <c>RealmLayer.Init</c> ПОСЛЕ <c>InboundDispatcherSystem</c>
-/// (MoveReq пишется бандлами входящих пакетов) и ДО <c>ChunkObserverSystem</c> (читает
-/// зафиксированный transform).</para>
+/// <para>Работает по <c>ItPlaying</c> — игрокам, прошедшим Join. Регистрируется в
+/// <c>RealmLayer.Init</c> ПОСЛЕ <c>InboundDispatcherSystem</c> (MoveReq пишется бандлами
+/// входящих пакетов) и ДО <c>ChunkObserverSystem</c> (читает зафиксированный transform).</para>
 /// </summary>
 internal sealed class CommitTransformSystem : IProtoRunSystem
 {
-    [DI] private readonly BridgeStateCacheStore _bridgeStateCacheStore = null!;
-    [DI] private readonly UserSessionCacheStore _realmCache = null!;
+    [DI] private readonly UserSessionCacheStore _userSessionCacheStore = null!;
+    [DI] private readonly PhysicsCacheStore _physics = null!;
 
     public void Run()
     {
-        foreach (var entity in _bridgeStateCacheStore.ConnectedFilter)
+        foreach (var entity in _userSessionCacheStore.ItPlaying)
         {
             // Нет MoveReq — позиция не менялась, transform остаётся прежним.
-            if (!_realmCache.MoveReqs.Has(entity))
+            if (!_physics.MoveReqs.Has(entity))
                 continue;
 
-            ref var move = ref _realmCache.MoveReqs.Get(entity);
-            ref var transform = ref _realmCache.Transforms.Get(entity);
+            ref var move = ref _physics.MoveReqs.Get(entity);
+            ref var transform = ref _physics.Transforms.Get(entity);
 
             // Фиксация: ввод клиента становится авторитетной позицией сервера.
             transform.Position = move.Position;
 
             // Запрос обработан — снимаем (живёт один тик).
-            _realmCache.MoveReqs.Del(entity);
+            _physics.MoveReqs.Del(entity);
         }
     }
 }
