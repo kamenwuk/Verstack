@@ -15,4 +15,5 @@ internal sealed class UserSessionCacheStore : ProtoAspectInject
     
     internal readonly ProtoPool<MoveReq> MoveReqs = null!;
     internal readonly ProtoPool<ChunkViewportInf> ChunkViewports = null!;
+    internal readonly ProtoPool<TransformInf> Transforms = null!;
 }

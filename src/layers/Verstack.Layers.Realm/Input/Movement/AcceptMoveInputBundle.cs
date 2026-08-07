@@ -7,6 +7,7 @@ using Leopotam.EcsProto;
 using Leopotam.EcsProto.QoL;
 using Verstack.Engine.Lifecycle;
 using Verstack.Layers.Realm.Movement;
+using Verstack.Shared.Maths;
 
 namespace Verstack.Layers.Realm.Input.Movement;
 
@@ -60,8 +61,9 @@ internal sealed class AcceptMoveInputBundle : PacketBundle
         // Последний пакет за тик перетирает предыдущие: важна финальная позиция.
         _cache.MoveReqs.GetOrAdd(entity) = new MoveReq
         {
-            X = x, Y = y, Z = z,
-            Yaw = yaw, Pitch = pitch,
+            Position = new Vector3((float)x, (float)y, (float)z),
+            Yaw = yaw,
+            Pitch = pitch,
             HasRotation = hasRotation
         };
 

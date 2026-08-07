@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Verstack.Shared.Maths;
 
 namespace Verstack.Shared.Spatial.Orientation;
@@ -57,50 +58,54 @@ public static class Compass
         new(-0.70f, 0.70f) // Northwest
     ];
 
-    // [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    // public static Dir8 GetAxis(Vector2Int from, Vector2Int to)
-    // {
-    //     var delta = math.sign(to - from);
-    //     
-    //     return (delta.x, delta.y) switch
-    //     {
-    //         (0, 1) => Dir8.North,
-    //         (1, 1) => Dir8.Northeast,
-    //         (1, 0) => Dir8.East,
-    //         (1, -1) => Dir8.Southeast,
-    //         (0, -1) => Dir8.South,
-    //         (-1, -1) => Dir8.Southwest,
-    //         (-1, 0) => Dir8.West,
-    //         (-1, 1) => Dir8.Northwest,
-    //         _ => throw new ArgumentException($"[{nameof(Compass)}] Не удается получить направление от {from} до {to}: позиции равны")
-    //     };
-    // }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Dir8 GetAxis(Vector2Int from, Vector2Int to)
+    {
+        var dx = Math.Sign(to.X - from.X);
+        var dz = Math.Sign(to.Y - from.Y);
 
-    // /// <summary>
-    // /// Определяет направление (Dir8) от одной float-координаты к другой.
-    // /// </summary>
-    // /// <param name="from">Начальная позиция.</param>
-    // /// <param name="to">Конечная позиция.</param>
-    // /// <returns>Направление типа <see cref="Dir8"/>.</returns>
-    // /// <exception cref="ArgumentException">Выбрасывается, если позиции from и to совпадают.</exception>
-    // [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    // public static Dir8 GetAxis(Vector2 from, Vector2 to)
-    // {
-    //     var delta = math.sign(to - from);
-    //     
-    //     return (delta.x, delta.y) switch
-    //     {
-    //         (0, 1) => Dir8.North,
-    //         (1, 1) => Dir8.Northeast,
-    //         (1, 0) => Dir8.East,
-    //         (1, -1) => Dir8.Southeast,
-    //         (0, -1) => Dir8.South,
-    //         (-1, -1) => Dir8.Southwest,
-    //         (-1, 0) => Dir8.West,
-    //         (-1, 1) => Dir8.Northwest,
-    //         _ => throw new ArgumentException($"[{nameof(Compass)}] Не удается получить направление от {from} до {to}: позиции равны")
-    //     };
-    // }
+        return (dx, dz) switch
+        {
+            ( 0, -1) => Dir8.North,
+            ( 1, -1) => Dir8.Northeast,
+            ( 1,  0) => Dir8.East,
+            ( 1,  1) => Dir8.Southeast,
+            ( 0,  1) => Dir8.South,
+            (-1,  1) => Dir8.Southwest,
+            (-1,  0) => Dir8.West,
+            (-1, -1) => Dir8.Northwest,
+            _ => throw new ArgumentException(
+                $"[{nameof(Compass)}] Не удалось получить направление от {from} до {to}: позиции равны")
+        };
+    }
+
+    /// <summary>
+    /// Определяет направление (Dir8) от одной float-координаты к другой.
+    /// </summary>
+    /// <param name="from">Начальная позиция.</param>
+    /// <param name="to">Конечная позиция.</param>
+    /// <returns>Направление типа <see cref="Dir8"/>.</returns>
+    /// <exception cref="ArgumentException">Выбрасывается, если позиции from и to совпадают.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Dir8 GetAxis(Vector2 from, Vector2 to)
+    {
+        var dx = Math.Sign(to.X - from.X);
+        var dz = Math.Sign(to.Y - from.Y);
+
+        return (dx, dz) switch
+        {
+            ( 0, -1) => Dir8.North,
+            ( 1, -1) => Dir8.Northeast,
+            ( 1,  0) => Dir8.East,
+            ( 1,  1) => Dir8.Southeast,
+            ( 0,  1) => Dir8.South,
+            (-1,  1) => Dir8.Southwest,
+            (-1,  0) => Dir8.West,
+            (-1, -1) => Dir8.Northwest,
+            _ => throw new ArgumentException(
+                $"[{nameof(Compass)}] Не удалось получить направление от {from} до {to}: позиции равны")
+        };
+    }
     
 //     /// <summary>
 //     /// Возвращает нормализованный шаг (вектор направления) от одной позиции к другой.

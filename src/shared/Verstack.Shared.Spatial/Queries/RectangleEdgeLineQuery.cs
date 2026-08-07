@@ -18,10 +18,6 @@ namespace Verstack.Shared.Spatial.Queries;
 /// клетку, а её соседа в направлении <c>direction</c> — контурную клетку снаружи
 /// прямоугольника. Используется для edge-update фронта: при движении объекта на один шаг
 /// новые клетки = outline старого объекта в направлении движения.</para>
-///
-/// <para>Адаптация <c>ObjectEdgeLineQuery</c> из Fortress: убраны круг и граф-зависимость,
-/// оставлена только прямоугольная геометрия. Курсор хранится как <see cref="Vector2Int"/>,
-/// шаги — через операторы.</para>
 /// </summary>
 public ref struct RectangleEdgeLineQuery
 {

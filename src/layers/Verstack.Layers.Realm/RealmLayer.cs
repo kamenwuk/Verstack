@@ -5,6 +5,7 @@ using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
+using Verstack.Layers.Realm.Movement;
 
 namespace Verstack.Layers.Realm;
 
@@ -15,7 +16,8 @@ public sealed class RealmLayer : ServerFeatureLayer
     public override void Init(IProtoSystems systems)
     {
         systems.AddSystem(new HandoffApprovalSystem())
-            .AddSystem(new InboundDispatcherSystem());
+            .AddSystem(new InboundDispatcherSystem())
+            .AddSystem(new CommitTransformSystem());
     }
 
     public override ProtoAspectInject[] GetCacheStores()
