@@ -29,4 +29,16 @@ public static class ServerConstants
     /// -1 / отсутствие Set Compression — compression выключена (несжатый framing).
     /// </summary>
     public const int COMPRESSION_THRESHOLD = 256;
+
+    /// <summary>
+    /// Интервал отправки Keep Alive (clientbound 0x2C), секунды. Ванилла — 15с; здесь короче
+    /// для отладки. Каждые INTERVAL сек сервер шлёт новый keep_alive всем свободным игрокам.
+    /// </summary>
+    public const double KEEPALIVE_INTERVAL = 5.0;
+
+    /// <summary>
+    /// Таймаут ответа на Keep Alive (serverbound 0x1C), секунды: не ответивший за TIMEOUT игрок
+    /// дисконнектится. Должен быть ≥ <see cref="KEEPALIVE_INTERVAL"/>. Ванилла — 15с; здесь больше.
+    /// </summary>
+    public const double KEEPALIVE_TIMEOUT = 10.0;
 }

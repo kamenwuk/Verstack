@@ -1,5 +1,6 @@
 using Verstack.Layers.Realm.Session.Physics;
 using Verstack.Layers.Realm.Session.Chunks;
+using Verstack.Layers.Realm.Shared;
 using Verstack.Layers.Realm.Chunks;
 using Verstack.Engine.Lifecycle;
 using Verstack.Shared.Maths;
@@ -10,7 +11,7 @@ namespace Verstack.Layers.Realm.Session;
 
 /// <summary>
 /// Наделяет сущность игровыми компонентами для активной игры в Realm: сеёт присутствие в
-/// мире (<see cref="TransformInf"/>) и флаг chunk-observer'а (<see cref="ChunkViewportInf"/>).
+/// мире (<see cref="TransformInf"/>) и флаг chunk-observer's (<see cref="ChunkViewportInf"/>).
 ///
 /// <para>Владелец знания «чем отличается свежий вход от возврата игрока» — здесь же ляжет
 /// ветвление fresh/returning. Вызывается из <c>HandoffApprovalSystem</c> после завершения
@@ -18,6 +19,7 @@ namespace Verstack.Layers.Realm.Session;
 /// </summary>
 internal sealed class HandoffSeeder
 {
+    private UserSessionCacheStore _userSession = null!;
     private PhysicsCacheStore _physics = null!;
     private ChunkCacheStore _chunks = null!;
 
@@ -26,6 +28,7 @@ internal sealed class HandoffSeeder
         var world = systems.NamedWorlds()[ServerWorldScopes.REALM];
         _physics = world.Aspect<PhysicsCacheStore>();
         _chunks = world.Aspect<ChunkCacheStore>();
+        _userSession = world.Aspect<UserSessionCacheStore>();
     }
 
     public void Seed(ProtoEntity entity)
@@ -41,5 +44,6 @@ internal sealed class HandoffSeeder
             LastCenterZ = 0,
             Radius = ChunkViewportInf.INITIAL_RADIUS
         };
+        _userSession.KeepAlives.Add(entity) = new KeepAliveInf();
     }
 }

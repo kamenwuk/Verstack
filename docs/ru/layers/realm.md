@@ -40,20 +40,37 @@ REALM-мир — фаза Play. Принимает игрока из [Gateway](g
 | Packet ID | Bundle | Назначение |
 |-----------|--------|------------|
 | `0x00` | `ConfirmTeleportBundle` | Подтверждение телепорта (clientbound teleport → ack) |
+| `0x1C` | `KeepAliveResponseBundle` | Ответ на keep_alive (сверка payload, строгое `Kick` при несовпадении) |
 | `0x1E` | `SetPlayerPositionBundle` | Движение: позиция без поворота |
 | `0x1F` | `SetPlayerPositionAndRotationBundle` | Движение: позиция + поворот |
 
 Пакеты Play приходят в произвольном порядке — поэтому здесь Dispatch, а не Sequential. `Kick` → `channel.Disconnect()`,
 дальше Bridge снимет сущность.
 
+## Keep Alive
+
+`KeepAliveSystem` (`IProtoRunSystem`, регистрируется в `RealmLayer.Init` после `InboundDispatcherSystem`) — сетевой
+health-check: раз в `KEEPALIVE_INTERVAL` (5с) шлёт `keep_alive` (clientbound `0x2C`, payload — `Long`) каждому
+**свободному** игроку, а не ответивших за `KEEPALIVE_TIMEOUT` (10с) дисконнектит.
+
+Проактивная отправка по таймеру — поэтому система, а не бандл (бандлы реактивны). Аккумулятор `_timer += DeltaTime`
+взят из `UpdateServerInfoSystem`; отправка — через `OutboundLease.Acquire` (Begin/Commit/Dispose → zero-copy в очередь).
+
+Per-entity состояние — `KeepAliveInf` (`Payload`, `SentAt`, `IsAwaiting`) в `UserSessionCacheStore`, сеётся в
+`HandoffSeeder` в состоянии «свободен». Флаг `IsAwaiting` блокирует повторную отправку ждущему игроку: его payload
+остаётся актуальным для сверки, а при истечении таймаута сущность дисконнектится. Ответ клиента разбирает
+`KeepAliveResponseBundle` в `InboundDispatcherSystem`. Порядок `Inbound → KeepAlive` важен: ответ `0x1C`, пришедший
+в этом тике, должен успеть снять `IsAwaiting` до проверки таймаута — иначе ложный кик на грани timeout'а. Таймаут
+проверяется каждый тик (а не только в тик отправки), чтобы кик сработал вовремя.
+
 ## UserSessionCacheStore
 
-`ProtoAspectInject`: пулы `NetworkSession`, `UserProfile`, `PacketFlowState`. Те же типы, что и в
+`ProtoAspectInject`: пулы `NetworkSession`, `UserProfile`, `PacketFlowState`, `KeepAliveInf`. Те же сессионные типы, что и в
 `GatewayCacheStore`, но экземпляры — свои, по той же сущности (она переезжает между слоями через Bridge). Фазовые
 данные Join-бандлов берутся из `SpawnConstants`/`WorldConstants` (Global); константы — статические, без инъекции.
 
 ## Что дальше
 
-Текущая область — Join + базовый movement. Симуляция мира (чанки, сущности, игровая логика) — не реализована и будет
+Текущая область — Join, базовый movement и Keep Alive (health-check соединения). Симуляция мира (чанки, сущности, игровая логика) — не реализована и будет
 дорабатываться поверх этой же структуры: системы над `ConnectedFilter`, обработка ввода через Dispatch-pipeline,
 синхронизация состояния через исходящие пакеты.

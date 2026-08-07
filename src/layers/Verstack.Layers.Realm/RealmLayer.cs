@@ -18,6 +18,7 @@ public sealed class RealmLayer : ServerFeatureLayer
     {
         systems.AddSystem(new HandoffApprovalSystem())
             .AddSystem(new InboundDispatcherSystem())
+            .AddSystem(new KeepAliveSystem())
             .AddSystem(new CommitTransformSystem());
     }
 

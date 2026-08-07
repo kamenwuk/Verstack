@@ -43,5 +43,8 @@ public enum LogKey
     PacketPlaySpawnPosition,
     PacketPlayCommands,
     PacketPlayTeleportConfirm,
-    PacketPlayMove
+    PacketPlayMove,
+    PacketPlayKeepAlive,
+    PacketPlayKeepAliveSent,
+    PacketPlayKeepAliveTimeout 
 }

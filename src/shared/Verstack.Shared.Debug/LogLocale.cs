@@ -48,7 +48,10 @@ public static class LogLocale
         { LogKey.PacketPlaySpawnPosition, "Realm -> {0}: Отправлен Set Default Spawn Position (0x61)" },
         { LogKey.PacketPlayCommands, "Realm -> {0}: Отправлен Commands (0x10) (Пустой граф команд)" },
         { LogKey.PacketPlayTeleportConfirm, "Realm <- {0}: Получен Confirm Teleportation (0x00). ID: {1}" },
-        { LogKey.PacketPlayMove, "Realm <- {0}: Получен Set Player Position (0x1A). XYZ: {1}, {2}, {3}" }
+        { LogKey.PacketPlayMove, "Realm <- {0}: Получен Set Player Position (0x1A). XYZ: {1}, {2}, {3}" },
+        { LogKey.PacketPlayKeepAlive, "Realm <- {0}: Получен Keep Alive (0x1C). Payload: {1}" },
+        { LogKey.PacketPlayKeepAliveSent, "Realm -> {0}: Отправлен Keep Alive (0x2C). Payload: {1}" },
+        { LogKey.PacketPlayKeepAliveTimeout, "Realm: игрок {0} отключён — нет ответа Keep Alive за {1}с." }
     };
 
     /// <summary>

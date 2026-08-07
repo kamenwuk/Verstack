@@ -15,7 +15,8 @@ internal sealed class UserSessionCacheStore : ProtoAspectInject
     internal readonly ProtoPool<NetworkSession> Sessions = null!;
     internal readonly ProtoPool<UserProfile> UserProfiles = null!;
     internal readonly ProtoPool<PacketFlowState> FlowStates = null!;
-
+    internal readonly ProtoPool<KeepAliveInf> KeepAlives = null!;
+    
     public override void Init(ProtoWorld world)
     {
         var bridgeStateCacheStore = world.Aspect<BridgeStateCacheStore>();

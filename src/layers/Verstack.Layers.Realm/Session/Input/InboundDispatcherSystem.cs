@@ -1,6 +1,7 @@
 using Verstack.Engine.Network.Packet.Pipeline;
 using Verstack.Layers.Realm.Input.Movement;
 using Verstack.Engine.Network.Compression;
+using Verstack.Layers.Realm.Input.Shared;
 using Verstack.Layers.Realm.Shared;
 using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
@@ -30,6 +31,7 @@ internal sealed class InboundDispatcherSystem : IProtoInitSystem, IProtoRunSyste
         _pipeline = new DispatchPacketPipeline(systems, _compressor, new Dictionary<int, PacketBundle>()
         {
             { 0x00, new ConfirmTeleportBundle() },
+            { 0x1C, new KeepAliveResponseBundle() },
             { 0x1E, moveInput },
             { 0x1F, moveInput }
         });
