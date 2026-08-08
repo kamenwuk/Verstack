@@ -33,7 +33,8 @@ internal sealed class InboundDispatcherSystem : IProtoInitSystem, IProtoRunSyste
             { 0x00, new ConfirmTeleportBundle() },
             { 0x1C, new KeepAliveResponseBundle() },
             { 0x1E, moveInput },
-            { 0x1F, moveInput }
+            { 0x1F, moveInput },
+            { 0x20, moveInput }
         });
     }
     

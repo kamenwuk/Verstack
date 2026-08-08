@@ -7,6 +7,7 @@ using Verstack.Engine.Lifecycle;
 using Verstack.Engine.Bridge;
 using Leopotam.EcsProto.QoL;
 using Leopotam.EcsProto;
+using Verstack.Layers.Realm.Session.World;
 
 namespace Verstack.Layers.Realm;
 
@@ -19,7 +20,10 @@ public sealed class RealmLayer : ServerFeatureLayer
         systems.AddSystem(new HandoffApprovalSystem())
             .AddSystem(new InboundDispatcherSystem())
             .AddSystem(new KeepAliveSystem())
-            .AddSystem(new CommitTransformSystem());
+            .AddSystem(new CommitTransformSystem())
+            .AddSystem(new WorldObjectSpawnSystem())
+            .AddSystem(new WorldObjectMovementSystem())
+            .AddSystem(new WorldObjectDespawnSystem());
     }
 
     public override ProtoAspectInject[] GetCacheStores()
@@ -28,7 +32,8 @@ public sealed class RealmLayer : ServerFeatureLayer
         [
             new UserSessionCacheStore(),
             new PhysicsCacheStore(),
-            new ChunkCacheStore()
+            new ChunkCacheStore(),
+            new WorldObjectCacheStore()
         ];
     }
 

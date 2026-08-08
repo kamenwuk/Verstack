@@ -23,4 +23,13 @@ public struct TransformInf
 {
     /// <summary>Мировое положение сущности (block units, float).</summary>
     public Vector3 Position;
+
+    /// <summary>Поворот вокруг вертикальной оси, градусы (0 = юг).</summary>
+    public float Yaw;
+
+    /// <summary>Наклон, градусы (0 = горизонт).</summary>
+    public float Pitch;
+
+    /// <summary>На земле ли сущность. Из onGround-флага move-пакетов; для анимаций в репликации.</summary>
+    public bool OnGround;
 }

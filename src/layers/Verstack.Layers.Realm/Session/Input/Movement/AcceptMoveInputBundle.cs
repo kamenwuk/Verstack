@@ -12,16 +12,16 @@ using Leopotam.EcsProto;
 namespace Verstack.Layers.Realm.Input.Movement;
 
 /// <summary>
-/// Принимает ввод перемещения от клиента (Set Player Position 0x1E и Set Player Position
-/// And Rotation 0x1F) и переводит его в ECS-запрос <see cref="MoveRequestComponent"/>.
+/// Принимает ввод перемещения/поворота от клиента (Set Player Position 0x1E, Set Player Position
+/// And Rotation 0x1F, Set Player Rotation 0x20) и переводит его в ECS-запрос <see cref="MoveReq"/>.
 ///
-/// <para>Один бандл на оба пакета: тела почти идентичны, отличаются только наличием yaw/pitch.
-/// Зарегистрирован одним экземпляром под двумя id в <see cref="InboundDispatcherSystem"/> —
-/// <c>DispatchPacketPipeline</c> вызывает <see cref="PacketBundle.Init"/> по <c>Values</c>,
-/// поэтому двойной инициализации не будет.</para>
+/// <para>Один бандл на три пакета: тела почти идентичны, отличаются набором полей. Зарегистрирован
+/// одним экземпляром под тремя id в <see cref="InboundDispatcherSystem"/>.</para>
 ///
-/// <para>За тик может прийти несколько пакетов: последний перетирает предыдущие через
-/// <c>GetOrAdd</c> — нас интересует финальная позиция игрока в конце тика.</para>
+/// <para>За тик может прийти несколько пакетов вперемешку (движение + поворот на месте). Слияние
+/// идёт по <see cref="MoveReq.HasPosition"/>/<see cref="MoveReq.HasRotation"/>: пакет 0x20 (только
+/// поворот) не затирает Position, накопленную пакетом 0x1F. Итоговый <see cref="MoveReq"/> несёт
+/// финальные позицию и поворот.</para>
 /// </summary>
 internal sealed class AcceptMoveInputBundle : PacketBundle
 {
@@ -39,35 +39,47 @@ internal sealed class AcceptMoveInputBundle : PacketBundle
     {
         var reader = packet.CreateReader();
 
-        double x = reader.ReadDouble();
-        double y = reader.ReadDouble();
-        double z = reader.ReadDouble();
+        // Поля зависят от типа пакета: 0x20 (rotation only) не несёт позиции.
+        Vector3 position = default;
+        var hasPosition = packet.Id != 0x20;
+        if (hasPosition)
+        {
+            double x = reader.ReadDouble();
+            double y = reader.ReadDouble();
+            double z = reader.ReadDouble();
+            position = new Vector3((float)x, (float)y, (float)z);
+        }
 
-        // Пакет 0x1F несёт дополнительно yaw/pitch; 0x1E — только позицию.
+        // 0x1E — только позиция; 0x1F и 0x20 несут поворот.
         float yaw = 0f;
         float pitch = 0f;
-        var hasRotation = packet.Id == 0x1F;
+        var hasRotation = packet.Id == 0x1F || packet.Id == 0x20;
         if (hasRotation)
         {
             yaw = reader.ReadFloat();
             pitch = reader.ReadFloat();
         }
 
-        _ = reader.ReadBool(); // onGround — пока не используется, читаем для корректности потока.
+        var onGround = reader.ReadBool();
 
         if (!reader.IsValid)
             return PacketHandleResult.Kick;
 
-        // Последний пакет за тик перетирает предыдущие: важна финальная позиция.
-        _physics.MoveReqs.GetOrAdd(entity) = new MoveReq
+        // Слияние по флагам: каждый пакет затирает только свою часть. 0x20 не трогает позицию
+        // от 0x1F — иначе игрока телепортировало бы в (0,0,0) при повороте на месте.
+        ref var req = ref _physics.MoveReqs.GetOrAdd(entity);
+        if (hasPosition)
+            req.Position = position;
+        if (hasRotation)
         {
-            Position = new Vector3((float)x, (float)y, (float)z),
-            Yaw = yaw,
-            Pitch = pitch,
-            HasRotation = hasRotation
-        };
+            req.Yaw = yaw;
+            req.Pitch = pitch;
+        }
+        req.HasPosition = req.HasPosition || hasPosition;
+        req.HasRotation = req.HasRotation || hasRotation;
+        req.OnGround = onGround;
 
-        Logger.Debug(LogKey.PacketPlayMove, (int)entity, x, y, z);
+        Logger.Debug(LogKey.PacketPlayMove, (int)entity, position.X, position.Y, position.Z);
 
         return PacketHandleResult.Accepted;
     }

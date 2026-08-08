@@ -35,7 +35,13 @@ internal sealed class CommitTransformSystem : IProtoRunSystem
             ref var transform = ref _physics.Transforms.Get(entity);
 
             // Фиксация: ввод клиента становится авторитетной позицией сервера.
-            transform.Position = move.Position;
+            if (move.HasPosition)
+                transform.Position = move.Position;
+            if (move.HasRotation)
+            {
+                transform.Yaw = move.Yaw;
+                transform.Pitch = move.Pitch;
+            }
 
             // Запрос обработан — снимаем (живёт один тик).
             _physics.MoveReqs.Del(entity);
